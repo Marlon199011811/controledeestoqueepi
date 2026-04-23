@@ -1,0 +1,1732 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SafeStock – Controle de EPIs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
+
+<!-- ═══════════════════════════════════════════════════
+     FIREBASE SDK  (v9 compat)
+     ═══════════════════════════════════════════════════ -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<style>
+/* ═══════════════════════════════════════════
+   VARIABLES & RESET
+═══════════════════════════════════════════ */
+:root{
+  --bg:#0e1117;
+  --bg2:#161b27;
+  --bg3:#1e2535;
+  --panel:#242d3f;
+  --border:#2e3a52;
+  --accent:#3b82f6;
+  --accent2:#22c55e;
+  --warn:#f59e0b;
+  --danger:#ef4444;
+  --text:#e8ecf4;
+  --text2:#8b96b0;
+  --text3:#5a6580;
+  --card-shadow:0 4px 24px rgba(0,0,0,.35);
+  --radius:12px;
+  --radius-sm:8px;
+  --font-head:'Syne',sans-serif;
+  --font-body:'DM Sans',sans-serif;
+  --sidebar-w:260px;
+  --sidebar-w-col:72px;
+  --header-h:64px;
+  --transition:.22s cubic-bezier(.4,0,.2,1);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:var(--font-body);background:var(--bg);color:var(--text);font-size:15px;line-height:1.6}
+button,input,select,textarea{font-family:inherit}
+a{color:var(--accent);text-decoration:none}
+img{display:block;max-width:100%}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+
+/* ═══════════════════════════════════════════
+   UTILITY
+═══════════════════════════════════════════ */
+.hidden{display:none!important}
+.flex{display:flex}
+.flex-col{flex-direction:column}
+.items-center{align-items:center}
+.justify-between{justify-content:space-between}
+.justify-center{justify-content:center}
+.gap-2{gap:.5rem}
+.gap-3{gap:.75rem}
+.gap-4{gap:1rem}
+.gap-6{gap:1.5rem}
+.w-full{width:100%}
+.text-sm{font-size:.8125rem}
+.text-xs{font-size:.75rem}
+.font-bold{font-weight:700}
+.text-accent{color:var(--accent)}
+.text-success{color:var(--accent2)}
+.text-warn{color:var(--warn)}
+.text-danger{color:var(--danger)}
+.text-muted{color:var(--text2)}
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pointer{cursor:pointer}
+.mt-1{margin-top:.25rem}
+.mt-2{margin-top:.5rem}
+.mt-4{margin-top:1rem}
+
+/* ═══════════════════════════════════════════
+   AUTH SCREENS  (Login / Register)
+═══════════════════════════════════════════ */
+#auth-screen{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse 80% 60% at 50% 0%,#1a2a4a 0%,var(--bg) 70%);
+  padding:1.5rem;
+}
+.auth-card{
+  width:100%;max-width:420px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:2.5rem 2rem;
+  box-shadow:0 24px 80px rgba(0,0,0,.55);
+  animation:slideUp .4s ease both;
+}
+@keyframes slideUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+.auth-logo{display:flex;align-items:center;gap:.75rem;margin-bottom:2rem}
+.auth-logo-icon{
+  width:44px;height:44px;border-radius:12px;
+  background:var(--accent);display:flex;align-items:center;justify-content:center;
+  font-size:1.25rem;color:#fff;
+}
+.auth-logo-text{font-family:var(--font-head);font-size:1.35rem;font-weight:800;letter-spacing:-.5px}
+.auth-logo-sub{font-size:.7rem;color:var(--text2);letter-spacing:1px;text-transform:uppercase}
+.auth-title{font-family:var(--font-head);font-size:1.5rem;font-weight:700;margin-bottom:.35rem}
+.auth-subtitle{color:var(--text2);font-size:.875rem;margin-bottom:1.75rem}
+
+/* ═══════════════════════════════════════════
+   FORM ELEMENTS
+═══════════════════════════════════════════ */
+.form-group{margin-bottom:1rem;position:relative}
+.form-label{display:block;font-size:.8rem;font-weight:600;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:.45rem}
+.form-input,.form-select,.form-textarea{
+  width:100%;padding:.65rem 1rem;
+  background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);
+  color:var(--text);font-size:.9rem;
+  transition:border-color var(--transition),box-shadow var(--transition);
+  outline:none;
+}
+.form-input:focus,.form-select:focus,.form-textarea:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(59,130,246,.18);
+}
+.form-input.has-icon{padding-right:2.75rem}
+.form-textarea{resize:vertical;min-height:80px}
+.form-select option{background:var(--panel)}
+.input-icon{position:absolute;right:.85rem;top:50%;transform:translateY(-50%);color:var(--text3);cursor:pointer;transition:color var(--transition)}
+.input-icon:hover{color:var(--accent)}
+.form-error{font-size:.78rem;color:var(--danger);margin-top:.3rem;display:flex;align-items:center;gap:.3rem}
+.form-hint{font-size:.78rem;color:var(--text3);margin-top:.3rem}
+.form-row{display:grid;gap:1rem;grid-template-columns:1fr 1fr}
+
+/* ═══════════════════════════════════════════
+   BUTTONS
+═══════════════════════════════════════════ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+  padding:.65rem 1.35rem;border:none;border-radius:var(--radius-sm);
+  font-size:.875rem;font-weight:600;cursor:pointer;
+  transition:all var(--transition);white-space:nowrap;
+}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover:not(:disabled){background:#2563eb;transform:translateY(-1px);box-shadow:0 6px 20px rgba(59,130,246,.4)}
+.btn-success{background:var(--accent2);color:#fff}
+.btn-success:hover:not(:disabled){background:#16a34a;transform:translateY(-1px)}
+.btn-warn{background:var(--warn);color:#111}
+.btn-warn:hover:not(:disabled){background:#d97706}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-danger:hover:not(:disabled){background:#dc2626}
+.btn-ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+.btn-ghost:hover:not(:disabled){background:var(--bg3);border-color:var(--text2)}
+.btn-sm{padding:.4rem .85rem;font-size:.8rem}
+.btn-icon{padding:.5rem;border-radius:8px}
+.btn-full{width:100%}
+.btn-link{background:none;border:none;color:var(--accent);font-size:.875rem;cursor:pointer;padding:0;font-weight:500;transition:opacity var(--transition)}
+.btn-link:hover{opacity:.75}
+
+/* ═══════════════════════════════════════════
+   APP LAYOUT
+═══════════════════════════════════════════ */
+#app{display:flex;height:100vh;overflow:hidden}
+
+/* SIDEBAR */
+.sidebar{
+  width:var(--sidebar-w);
+  background:var(--bg2);
+  border-right:1px solid var(--border);
+  display:flex;flex-direction:column;
+  transition:width var(--transition);
+  overflow:hidden;z-index:100;
+  flex-shrink:0;
+}
+.sidebar.collapsed{width:var(--sidebar-w-col)}
+
+.sidebar-header{
+  height:var(--header-h);min-height:var(--header-h);
+  display:flex;align-items:center;gap:.85rem;
+  padding:0 1.15rem;border-bottom:1px solid var(--border);
+}
+.sidebar-logo-icon{
+  width:36px;height:36px;flex-shrink:0;
+  border-radius:10px;background:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1rem;color:#fff;
+}
+.sidebar-logo-text{
+  font-family:var(--font-head);font-size:1.1rem;font-weight:800;
+  white-space:nowrap;overflow:hidden;
+}
+.sidebar-toggle{
+  margin-left:auto;flex-shrink:0;
+  background:none;border:none;color:var(--text2);
+  cursor:pointer;padding:.3rem;border-radius:6px;
+  transition:color var(--transition);font-size:.9rem;
+}
+.sidebar-toggle:hover{color:var(--text)}
+.sidebar.collapsed .sidebar-logo-text,.sidebar.collapsed .nav-label,.sidebar.collapsed .nav-section-title{opacity:0;width:0;overflow:hidden}
+.sidebar.collapsed .sidebar-toggle i{transform:rotate(180deg)}
+.sidebar-toggle i{transition:transform var(--transition)}
+
+.sidebar-nav{flex:1;overflow-y:auto;padding:.75rem 0}
+.nav-section-title{
+  font-size:.65rem;letter-spacing:1.5px;text-transform:uppercase;
+  color:var(--text3);padding:.5rem 1.15rem .25rem;
+  white-space:nowrap;overflow:hidden;transition:all var(--transition);
+}
+.nav-item{
+  display:flex;align-items:center;gap:.85rem;
+  padding:.6rem 1.15rem;margin:.1rem .5rem;
+  border-radius:var(--radius-sm);cursor:pointer;
+  color:var(--text2);font-size:.875rem;font-weight:500;
+  transition:all var(--transition);white-space:nowrap;
+}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{background:rgba(59,130,246,.15);color:var(--accent)}
+.nav-item .nav-icon{width:20px;flex-shrink:0;text-align:center;font-size:.95rem}
+.nav-item .nav-label{overflow:hidden;transition:all var(--transition)}
+.nav-badge{
+  margin-left:auto;background:var(--danger);color:#fff;
+  font-size:.65rem;font-weight:700;padding:.15rem .45rem;
+  border-radius:99px;flex-shrink:0;
+}
+.sidebar.collapsed .nav-badge{display:none}
+
+.sidebar-footer{
+  padding:.85rem;border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:.75rem;
+  min-height:72px;
+}
+.user-avatar{
+  width:34px;height:34px;flex-shrink:0;border-radius:99px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;
+  font-size:.8rem;font-weight:700;color:#fff;
+}
+.user-info{overflow:hidden;flex:1}
+.user-name{font-size:.82rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-role{font-size:.71rem;color:var(--text2)}
+.sidebar.collapsed .user-info,.sidebar.collapsed .btn-logout-icon{display:none}
+.btn-logout-icon{
+  background:none;border:none;color:var(--text3);cursor:pointer;
+  font-size:.9rem;padding:.3rem;border-radius:6px;flex-shrink:0;
+  transition:color var(--transition);
+}
+.btn-logout-icon:hover{color:var(--danger)}
+
+/* MAIN CONTENT */
+.main-content{
+  flex:1;display:flex;flex-direction:column;overflow:hidden;
+}
+.topbar{
+  height:var(--header-h);min-height:var(--header-h);
+  background:var(--bg2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 1.5rem;
+  gap:1rem;
+}
+.topbar-title{font-family:var(--font-head);font-size:1.15rem;font-weight:700;flex:1}
+.topbar-actions{display:flex;align-items:center;gap:.75rem}
+.page-content{flex:1;overflow-y:auto;padding:1.5rem}
+
+/* ═══════════════════════════════════════════
+   CARDS
+═══════════════════════════════════════════ */
+.card{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius);padding:1.35rem;
+  box-shadow:var(--card-shadow);
+}
+.card-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:1.15rem;
+}
+.card-title{font-family:var(--font-head);font-size:.95rem;font-weight:700;letter-spacing:-.2px}
+
+/* STAT CARDS */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem}
+.stat-card{
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:1.25rem 1.35rem;position:relative;overflow:hidden;
+  transition:transform var(--transition),box-shadow var(--transition);
+}
+.stat-card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.4)}
+.stat-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:var(--card-accent,var(--accent));
+}
+.stat-card-icon{
+  width:42px;height:42px;border-radius:10px;
+  background:rgba(59,130,246,.12);color:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;margin-bottom:.85rem;
+}
+.stat-card-value{font-family:var(--font-head);font-size:1.9rem;font-weight:800;line-height:1.1}
+.stat-card-label{font-size:.78rem;color:var(--text2);margin-top:.25rem;letter-spacing:.3px}
+.stat-card-trend{
+  position:absolute;bottom:1rem;right:1.25rem;
+  font-size:.72rem;font-weight:600;display:flex;align-items:center;gap:.25rem;
+}
+
+/* ═══════════════════════════════════════════
+   TABLE
+═══════════════════════════════════════════ */
+.table-container{overflow-x:auto;margin-top:.75rem}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+thead th{
+  padding:.65rem 1rem;text-align:left;
+  background:var(--bg3);color:var(--text2);
+  font-size:.72rem;font-weight:600;letter-spacing:.6px;text-transform:uppercase;
+  border-bottom:1px solid var(--border);white-space:nowrap;
+}
+thead th:first-child{border-radius:var(--radius-sm) 0 0 0}
+thead th:last-child{border-radius:0 var(--radius-sm) 0 0}
+tbody tr{border-bottom:1px solid rgba(46,58,82,.5);transition:background var(--transition)}
+tbody tr:hover{background:var(--bg3)}
+tbody td{padding:.7rem 1rem;vertical-align:middle}
+tbody tr:last-child{border-bottom:none}
+.td-actions{display:flex;gap:.4rem;white-space:nowrap}
+
+/* STATUS BADGES */
+.badge{
+  display:inline-flex;align-items:center;gap:.3rem;
+  padding:.2rem .6rem;border-radius:99px;
+  font-size:.72rem;font-weight:600;letter-spacing:.3px;white-space:nowrap;
+}
+.badge-success{background:rgba(34,197,94,.15);color:var(--accent2)}
+.badge-warn{background:rgba(245,158,11,.15);color:var(--warn)}
+.badge-danger{background:rgba(239,68,68,.15);color:var(--danger)}
+.badge-info{background:rgba(59,130,246,.15);color:var(--accent)}
+.badge-neutral{background:rgba(139,150,176,.1);color:var(--text2)}
+
+/* ═══════════════════════════════════════════
+   SEARCH & FILTER BAR
+═══════════════════════════════════════════ */
+.filter-bar{
+  display:flex;flex-wrap:wrap;gap:.75rem;align-items:center;
+  margin-bottom:1.15rem;
+}
+.search-input-wrap{position:relative;flex:1;min-width:200px}
+.search-input-wrap i{
+  position:absolute;left:.9rem;top:50%;transform:translateY(-50%);
+  color:var(--text3);font-size:.85rem;pointer-events:none;
+}
+.search-input{padding:.6rem .9rem .6rem 2.4rem;width:100%}
+
+/* ═══════════════════════════════════════════
+   MODAL
+═══════════════════════════════════════════ */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.7);
+  backdrop-filter:blur(4px);z-index:1000;
+  display:flex;align-items:center;justify-content:center;
+  padding:1rem;
+  animation:fadeIn .2s ease both;
+}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.modal{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:20px;padding:2rem;
+  width:100%;max-width:540px;max-height:90vh;overflow-y:auto;
+  box-shadow:0 40px 100px rgba(0,0,0,.6);
+  animation:slideUp .3s ease both;
+}
+.modal-lg{max-width:680px}
+.modal-header{
+  display:flex;align-items:flex-start;justify-content:space-between;
+  margin-bottom:1.5rem;
+}
+.modal-title{font-family:var(--font-head);font-size:1.15rem;font-weight:700}
+.modal-subtitle{font-size:.8rem;color:var(--text2);margin-top:.2rem}
+.modal-close{
+  background:none;border:none;color:var(--text2);cursor:pointer;
+  font-size:1.1rem;padding:.3rem;border-radius:6px;
+  transition:color var(--transition);flex-shrink:0;margin-left:.75rem;margin-top:-.1rem;
+}
+.modal-close:hover{color:var(--text)}
+.modal-footer{display:flex;justify-content:flex-end;gap:.75rem;margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border)}
+
+/* ═══════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════ */
+#toast-container{
+  position:fixed;bottom:1.5rem;right:1.5rem;
+  z-index:2000;display:flex;flex-direction:column;gap:.6rem;
+}
+.toast{
+  min-width:280px;max-width:380px;
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius);padding:.85rem 1.1rem;
+  display:flex;align-items:flex-start;gap:.75rem;
+  box-shadow:0 8px 32px rgba(0,0,0,.45);
+  animation:slideLeft .3s ease both;
+  font-size:.85rem;
+}
+@keyframes slideLeft{from{opacity:0;transform:translateX(60px)}to{opacity:1;transform:translateX(0)}}
+.toast.removing{animation:slideLeft .25s ease reverse both}
+.toast-icon{font-size:1rem;flex-shrink:0;margin-top:.05rem}
+.toast-body{flex:1}
+.toast-title{font-weight:600;margin-bottom:.1rem}
+.toast-msg{color:var(--text2);font-size:.8rem}
+.toast-success .toast-icon{color:var(--accent2)}
+.toast-success{border-left:3px solid var(--accent2)}
+.toast-error .toast-icon{color:var(--danger)}
+.toast-error{border-left:3px solid var(--danger)}
+.toast-warn .toast-icon{color:var(--warn)}
+.toast-warn{border-left:3px solid var(--warn)}
+.toast-info .toast-icon{color:var(--accent)}
+.toast-info{border-left:3px solid var(--accent)}
+
+/* ═══════════════════════════════════════════
+   LOADER
+═══════════════════════════════════════════ */
+.loader-overlay{
+  position:fixed;inset:0;background:rgba(14,17,23,.8);
+  z-index:3000;display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(3px);
+}
+.loader{
+  width:44px;height:44px;border-radius:50%;
+  border:3px solid var(--border);
+  border-top-color:var(--accent);
+  animation:spin .75s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{
+  width:18px;height:18px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;
+  animation:spin .6s linear infinite;
+  display:inline-block;
+}
+
+/* ═══════════════════════════════════════════
+   DASHBOARD SPECIFIC
+═══════════════════════════════════════════ */
+.section-title{
+  font-family:var(--font-head);font-size:1.05rem;font-weight:700;
+  margin-bottom:1rem;display:flex;align-items:center;gap:.6rem;
+}
+.section-title i{color:var(--accent)}
+.alert-list{display:flex;flex-direction:column;gap:.6rem}
+.alert-item{
+  display:flex;align-items:center;gap:.85rem;
+  padding:.7rem 1rem;border-radius:var(--radius-sm);
+  background:var(--bg3);border:1px solid var(--border);
+  font-size:.84rem;
+}
+.alert-item-danger{border-left:3px solid var(--danger)}
+.alert-item-warn{border-left:3px solid var(--warn)}
+.alert-item i{flex-shrink:0}
+.alert-item-info{flex:1;min-width:0}
+.recent-list{display:flex;flex-direction:column;gap:.5rem}
+.recent-item{
+  display:flex;align-items:center;gap:.85rem;
+  padding:.65rem 1rem;border-radius:var(--radius-sm);
+  background:var(--bg3);font-size:.83rem;
+}
+.recent-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.dot-entrada{background:var(--accent2)}
+.dot-saida{background:var(--danger)}
+.dot-ajuste{background:var(--warn)}
+
+/* EMPTY STATE */
+.empty-state{
+  text-align:center;padding:3rem 1.5rem;
+  color:var(--text2);
+}
+.empty-state i{font-size:2.5rem;opacity:.35;margin-bottom:.75rem;display:block}
+.empty-state p{font-size:.9rem}
+
+/* ═══════════════════════════════════════════
+   PAGINATION
+═══════════════════════════════════════════ */
+.pagination{
+  display:flex;align-items:center;justify-content:center;gap:.4rem;
+  margin-top:1.25rem;
+}
+.page-btn{
+  min-width:34px;height:34px;border-radius:8px;border:1px solid var(--border);
+  background:var(--bg3);color:var(--text2);cursor:pointer;
+  font-size:.82rem;font-weight:600;transition:all var(--transition);
+  display:flex;align-items:center;justify-content:center;
+}
+.page-btn:hover:not(.active):not(:disabled){border-color:var(--accent);color:var(--accent)}
+.page-btn.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.page-btn:disabled{opacity:.4;cursor:not-allowed}
+.page-info{font-size:.8rem;color:var(--text2);margin:0 .5rem}
+
+/* ═══════════════════════════════════════════
+   HISTORY SPECIFIC
+═══════════════════════════════════════════ */
+.mov-type-badge.entrada{background:rgba(34,197,94,.12);color:var(--accent2);border:1px solid rgba(34,197,94,.25)}
+.mov-type-badge.saida{background:rgba(239,68,68,.12);color:var(--danger);border:1px solid rgba(239,68,68,.25)}
+.mov-type-badge.ajuste{background:rgba(245,158,11,.12);color:var(--warn);border:1px solid rgba(245,158,11,.25)}
+
+/* ═══════════════════════════════════════════
+   MOBILE NAV OVERLAY
+═══════════════════════════════════════════ */
+.sidebar-overlay{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);
+  z-index:99;
+}
+@media(max-width:768px){
+  .sidebar{
+    position:fixed;top:0;left:0;height:100%;
+    transform:translateX(-100%);transition:transform var(--transition);
+    width:var(--sidebar-w)!important;
+  }
+  .sidebar.mobile-open{transform:translateX(0)}
+  .sidebar-overlay.show{display:block}
+  .form-row{grid-template-columns:1fr}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .page-content{padding:1rem}
+  .modal{padding:1.5rem}
+  .topbar{padding:0 1rem}
+  .sidebar.collapsed{width:var(--sidebar-w)!important;transform:translateX(-100%)}
+  #mobile-menu-btn{display:flex!important}
+}
+#mobile-menu-btn{display:none}
+
+/* ═══════════════════════════════════════════
+   DIVIDER & MISC
+═══════════════════════════════════════════ */
+.divider{height:1px;background:var(--border);margin:1.25rem 0}
+.color-accent{color:var(--accent)}
+.tag{
+  display:inline-block;padding:.15rem .55rem;
+  border-radius:99px;font-size:.7rem;font-weight:600;
+  background:rgba(59,130,246,.12);color:var(--accent);
+  border:1px solid rgba(59,130,246,.25);
+}
+/* progress bar */
+.progress-bar{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:.4rem}
+.progress-bar-fill{height:100%;border-radius:3px;transition:width .6s ease}
+.bar-ok{background:var(--accent2)}
+.bar-warn{background:var(--warn)}
+.bar-danger{background:var(--danger)}
+.bar-zero{background:var(--text3)}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════ LOADER ═══════════════════════ -->
+<div class="loader-overlay" id="loader"><div class="loader"></div></div>
+
+<!-- ═══════════════════════ TOAST CONTAINER ═══════════════════════ -->
+<div id="toast-container"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     AUTH SCREEN
+══════════════════════════════════════════════════════════════════ -->
+<div id="auth-screen">
+  <!-- LOGIN -->
+  <div id="login-card" class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-logo-icon"><i class="fas fa-shield-halved"></i></div>
+      <div>
+        <div class="auth-logo-text">SafeStock</div>
+        <div class="auth-logo-sub">Controle de EPIs</div>
+      </div>
+    </div>
+    <div class="auth-title">Bem-vindo de volta</div>
+    <div class="auth-subtitle">Faça login para acessar o sistema</div>
+
+    <div class="form-group">
+      <label class="form-label">E-mail</label>
+      <input type="email" id="login-email" class="form-input" placeholder="seu@email.com" autocomplete="email"/>
+      <div class="form-error hidden" id="login-email-err"><i class="fas fa-circle-exclamation"></i><span></span></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Senha</label>
+      <input type="password" id="login-password" class="form-input has-icon" placeholder="••••••••" autocomplete="current-password"/>
+      <span class="input-icon" onclick="togglePass('login-password',this)"><i class="fas fa-eye"></i></span>
+      <div class="form-error hidden" id="login-pass-err"><i class="fas fa-circle-exclamation"></i><span></span></div>
+    </div>
+
+    <div class="form-error hidden" id="login-general-err" style="margin-bottom:.75rem"><i class="fas fa-circle-exclamation"></i><span></span></div>
+
+    <button class="btn btn-primary btn-full" onclick="doLogin()" id="btn-login">
+      <span>Entrar</span>
+    </button>
+
+    <div style="text-align:center;margin-top:1.15rem;font-size:.84rem;color:var(--text2)">
+      Não tem conta? <button class="btn-link" onclick="showRegister()">Cadastrar-se</button>
+    </div>
+  </div>
+
+  <!-- REGISTER -->
+  <div id="register-card" class="auth-card hidden">
+    <div class="auth-logo">
+      <div class="auth-logo-icon"><i class="fas fa-shield-halved"></i></div>
+      <div>
+        <div class="auth-logo-text">SafeStock</div>
+        <div class="auth-logo-sub">Novo Usuário</div>
+      </div>
+    </div>
+    <div class="auth-title">Criar conta</div>
+    <div class="auth-subtitle">Preencha os dados para se registrar</div>
+
+    <div class="form-group">
+      <label class="form-label">Nome completo</label>
+      <input type="text" id="reg-name" class="form-input" placeholder="João Silva"/>
+      <div class="form-error hidden" id="reg-name-err"><i class="fas fa-circle-exclamation"></i><span></span></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">E-mail</label>
+      <input type="email" id="reg-email" class="form-input" placeholder="seu@email.com"/>
+      <div class="form-error hidden" id="reg-email-err"><i class="fas fa-circle-exclamation"></i><span></span></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Senha <span class="text-muted">(mín. 6 caracteres)</span></label>
+      <input type="password" id="reg-pass" class="form-input has-icon" placeholder="••••••••"/>
+      <span class="input-icon" onclick="togglePass('reg-pass',this)"><i class="fas fa-eye"></i></span>
+      <div class="form-error hidden" id="reg-pass-err"><i class="fas fa-circle-exclamation"></i><span></span></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Confirmar senha</label>
+      <input type="password" id="reg-pass2" class="form-input has-icon" placeholder="••••••••"/>
+      <span class="input-icon" onclick="togglePass('reg-pass2',this)"><i class="fas fa-eye"></i></span>
+      <div class="form-error hidden" id="reg-pass2-err"><i class="fas fa-circle-exclamation"></i><span></span></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Perfil</label>
+      <select id="reg-role" class="form-select">
+        <option value="usuario">Usuário comum</option>
+        <option value="admin">Administrador</option>
+      </select>
+    </div>
+
+    <div class="form-error hidden" id="reg-general-err" style="margin-bottom:.75rem"><i class="fas fa-circle-exclamation"></i><span></span></div>
+
+    <button class="btn btn-primary btn-full" onclick="doRegister()" id="btn-register">
+      <span>Cadastrar</span>
+    </button>
+    <div style="text-align:center;margin-top:1rem;font-size:.84rem;color:var(--text2)">
+      Já tem conta? <button class="btn-link" onclick="showLogin()">Fazer login</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     MAIN APP
+══════════════════════════════════════════════════════════════════ -->
+<div id="app" class="hidden">
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeMobileMenu()"></div>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo-icon"><i class="fas fa-shield-halved"></i></div>
+      <span class="sidebar-logo-text">SafeStock</span>
+      <button class="sidebar-toggle" onclick="toggleSidebar()" title="Recolher menu">
+        <i class="fas fa-chevron-left"></i>
+      </button>
+    </div>
+
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <div class="nav-section-title">Principal</div>
+      <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+        <span class="nav-icon"><i class="fas fa-gauge-high"></i></span>
+        <span class="nav-label">Dashboard</span>
+      </div>
+
+      <div class="nav-section-title" style="margin-top:.5rem">EPIs</div>
+      <div class="nav-item" data-page="epis" onclick="navigate('epis')">
+        <span class="nav-icon"><i class="fas fa-hard-hat"></i></span>
+        <span class="nav-label">Estoque de EPIs</span>
+      </div>
+      <div class="nav-item" data-page="movimentacoes" onclick="navigate('movimentacoes')">
+        <span class="nav-icon"><i class="fas fa-arrows-rotate"></i></span>
+        <span class="nav-label">Movimentações</span>
+      </div>
+      <div class="nav-item" data-page="historico" onclick="navigate('historico')">
+        <span class="nav-icon"><i class="fas fa-clock-rotate-left"></i></span>
+        <span class="nav-label">Histórico</span>
+      </div>
+
+      <div class="nav-section-title admin-only" style="margin-top:.5rem">Gestão</div>
+      <div class="nav-item admin-only" data-page="usuarios" onclick="navigate('usuarios')">
+        <span class="nav-icon"><i class="fas fa-users"></i></span>
+        <span class="nav-label">Usuários</span>
+      </div>
+      <div class="nav-item" data-page="alertas" onclick="navigate('alertas')">
+        <span class="nav-icon"><i class="fas fa-bell"></i></span>
+        <span class="nav-label">Alertas</span>
+        <span class="nav-badge hidden" id="alert-badge">0</span>
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">
+      <div class="user-avatar" id="sidebar-avatar">?</div>
+      <div class="user-info">
+        <div class="user-name" id="sidebar-user-name">—</div>
+        <div class="user-role" id="sidebar-user-role">—</div>
+      </div>
+      <button class="btn-logout-icon" onclick="doLogout()" title="Sair"><i class="fas fa-right-from-bracket"></i></button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main-content">
+    <header class="topbar">
+      <button class="btn btn-ghost btn-icon" id="mobile-menu-btn" onclick="openMobileMenu()">
+        <i class="fas fa-bars"></i>
+      </button>
+      <div class="topbar-title" id="topbar-title">Dashboard</div>
+      <div class="topbar-actions">
+        <button class="btn btn-primary btn-sm admin-only" id="topbar-add-btn" onclick="handleTopbarAdd()">
+          <i class="fas fa-plus"></i><span id="topbar-add-label">Novo EPI</span>
+        </button>
+      </div>
+    </header>
+
+    <div class="page-content" id="page-content">
+      <!-- Pages rendered here -->
+    </div>
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     MODALS
+══════════════════════════════════════════════════════════════════ -->
+
+<!-- EPI Modal -->
+<div class="modal-overlay hidden" id="epi-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="epi-modal-title">Novo EPI</div>
+        <div class="modal-subtitle">Preencha todos os campos obrigatórios*</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('epi-modal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form onsubmit="return false;">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nome do EPI *</label>
+          <input type="text" id="epi-nome" class="form-input" placeholder="Ex: Capacete de Proteção"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Código / CA *</label>
+          <input type="text" id="epi-codigo" class="form-input" placeholder="Ex: CAP-001"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Categoria *</label>
+          <select id="epi-categoria" class="form-select">
+            <option value="">Selecione...</option>
+            <option>Cabeça</option><option>Olhos e Face</option>
+            <option>Respiratório</option><option>Ouvidos</option>
+            <option>Mãos e Braços</option><option>Pés e Pernas</option>
+            <option>Corpo</option><option>Contra Quedas</option>
+            <option>Outro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Tamanho</label>
+          <input type="text" id="epi-tamanho" class="form-input" placeholder="Ex: P, M, G, GG, único"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Unidade *</label>
+          <select id="epi-unidade" class="form-select">
+            <option>Un</option><option>Par</option><option>Caixa</option>
+            <option>Pacote</option><option>Kit</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Fabricante</label>
+          <input type="text" id="epi-fabricante" class="form-input" placeholder="Ex: 3M, Deltaplus"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Qtd. em estoque *</label>
+          <input type="number" id="epi-quantidade" class="form-input" placeholder="0" min="0"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Estoque mínimo *</label>
+          <input type="number" id="epi-estoque-min" class="form-input" placeholder="0" min="0"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Data de validade</label>
+          <input type="date" id="epi-validade" class="form-input"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">CA (Certificado de Aprovação)</label>
+          <input type="text" id="epi-ca" class="form-input" placeholder="Nº do CA"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Observações</label>
+        <textarea id="epi-obs" class="form-textarea" placeholder="Anotações adicionais..."></textarea>
+      </div>
+    </form>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('epi-modal')">Cancelar</button>
+      <button class="btn btn-primary" id="btn-save-epi" onclick="saveEPI()"><i class="fas fa-floppy-disk"></i> Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Movimentação Modal -->
+<div class="modal-overlay hidden" id="mov-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Registrar Movimentação</div>
+        <div class="modal-subtitle">Entrada, saída ou ajuste de estoque</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('mov-modal')"><i class="fas fa-times"></i></button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">EPI *</label>
+      <select id="mov-epi" class="form-select"><option value="">Selecione o EPI...</option></select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Tipo de movimentação *</label>
+      <select id="mov-tipo" class="form-select">
+        <option value="entrada">📥 Entrada</option>
+        <option value="saida">📤 Saída</option>
+        <option value="ajuste">⚖️ Ajuste manual</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Quantidade *</label>
+      <input type="number" id="mov-qtd" class="form-input" placeholder="0" min="1"/>
+      <div class="form-hint" id="mov-estoque-hint"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Data *</label>
+      <input type="date" id="mov-data" class="form-input"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Colaborador / Destino</label>
+      <input type="text" id="mov-destino" class="form-input" placeholder="Nome do colaborador ou destino"/>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Observação</label>
+      <textarea id="mov-obs" class="form-textarea" placeholder="Motivo, detalhes da movimentação..."></textarea>
+    </div>
+    <div class="form-error hidden" id="mov-error"><i class="fas fa-circle-exclamation"></i><span></span></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('mov-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveMovimentacao()"><i class="fas fa-check"></i> Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal-overlay hidden" id="confirm-modal">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-title">Confirmar exclusão</div>
+      <button class="modal-close" onclick="closeModal('confirm-modal')"><i class="fas fa-times"></i></button>
+    </div>
+    <p style="color:var(--text2);font-size:.9rem" id="confirm-msg">Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.</p>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('confirm-modal')">Cancelar</button>
+      <button class="btn btn-danger" id="btn-confirm-delete"><i class="fas fa-trash"></i> Excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════════════════════════════════ -->
+<script>
+/* ═══════════════════════════════════════════════════════════
+   1. FIREBASE CONFIG — ⚠️ SUBSTITUA PELO SEU PROJETO FIREBASE
+   ═══════════════════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey: "AIzaSyBWLAr_-5glbvTK8AqAO7MQAiQ_CC6bwgo",
+  authDomain: "controle-de-epi-8887a.firebaseapp.com",
+  projectId: "controle-de-epi-8887a",
+  storageBucket: "controle-de-epi-8887a.firebasestorage.app",
+  messagingSenderId: "970882437995",
+  appId: "1:970882437995:web:704d0f9b62ede7d848f22e"
+};
+
+// Inicializa Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+/* ═══════════════════════════════════════════
+   2. STATE
+═══════════════════════════════════════════ */
+let currentUser   = null;
+let currentPage   = 'dashboard';
+let allEPIs       = [];   // cache local
+let allMov        = [];   // cache local
+let epiEditId     = null;
+let confirmCb     = null;
+let episPage      = 1;
+const ITEMS_PAGE  = 12;
+
+/* ═══════════════════════════════════════════
+   3. HELPERS — UI
+═══════════════════════════════════════════ */
+const $  = id => document.getElementById(id);
+const el = (tag,cls,html='') => { const e=document.createElement(tag); if(cls)e.className=cls; e.innerHTML=html; return e; };
+
+function showLoader(){$('loader').classList.remove('hidden')}
+function hideLoader(){$('loader').classList.add('hidden')}
+
+function toast(title, msg='', type='info'){
+  const icons={success:'fa-circle-check',error:'fa-circle-xmark',warn:'fa-triangle-exclamation',info:'fa-circle-info'};
+  const t=el('div',`toast toast-${type}`);
+  t.innerHTML=`<i class="fas ${icons[type]} toast-icon"></i><div class="toast-body"><div class="toast-title">${title}</div>${msg?`<div class="toast-msg">${msg}</div>`:''}</div>`;
+  $('toast-container').appendChild(t);
+  setTimeout(()=>{t.classList.add('removing');setTimeout(()=>t.remove(),300)},3500);
+}
+
+function showError(id,msg){
+  const el=$(`${id}`); if(!el)return;
+  el.classList.remove('hidden');
+  el.querySelector('span').textContent=msg;
+}
+function clearError(id){const e=$(id);if(e)e.classList.add('hidden')}
+
+function togglePass(inputId, btn){
+  const inp=$(inputId);
+  inp.type = inp.type==='password'?'text':'password';
+  btn.innerHTML = inp.type==='password'?'<i class="fas fa-eye"></i>':'<i class="fas fa-eye-slash"></i>';
+}
+
+function openModal(id){$(id).classList.remove('hidden')}
+function closeModal(id){$(id).classList.add('hidden')}
+
+function confirmDelete(msg, cb){
+  $('confirm-msg').textContent = msg;
+  $('btn-confirm-delete').onclick = ()=>{ closeModal('confirm-modal'); cb(); };
+  openModal('confirm-modal');
+}
+
+/* ═══════════════════════════════════════════
+   4. AUTH
+═══════════════════════════════════════════ */
+function showRegister(){$('login-card').classList.add('hidden');$('register-card').classList.remove('hidden')}
+function showLogin(){$('register-card').classList.add('hidden');$('login-card').classList.remove('hidden')}
+
+async function doLogin(){
+  clearError('login-email-err'); clearError('login-pass-err'); clearError('login-general-err');
+  const email=$('login-email').value.trim();
+  const pass =$('login-password').value;
+  if(!email){showError('login-email-err','Informe o e-mail');return}
+  if(!pass) {showError('login-pass-err','Informe a senha');return}
+  const btn=$('btn-login');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span> Entrando...';
+  try{
+    await auth.signInWithEmailAndPassword(email,pass);
+  }catch(e){
+    btn.disabled=false; btn.innerHTML='<span>Entrar</span>';
+    showError('login-general-err', firebaseErrorMsg(e.code));
+  }
+}
+
+async function doRegister(){
+  clearError('reg-name-err');clearError('reg-email-err');clearError('reg-pass-err');clearError('reg-pass2-err');clearError('reg-general-err');
+  const name  =$('reg-name').value.trim();
+  const email =$('reg-email').value.trim();
+  const pass  =$('reg-pass').value;
+  const pass2 =$('reg-pass2').value;
+  const role  =$('reg-role').value;
+  let ok=true;
+  if(!name) {showError('reg-name-err','Informe o nome');ok=false}
+  if(!email){showError('reg-email-err','Informe o e-mail');ok=false}
+  if(pass.length<6){showError('reg-pass-err','Mínimo 6 caracteres');ok=false}
+  if(pass!==pass2){showError('reg-pass2-err','Senhas não conferem');ok=false}
+  if(!ok)return;
+  const btn=$('btn-register');
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Cadastrando...';
+  try{
+    const cred=await auth.createUserWithEmailAndPassword(email,pass);
+    await db.collection('usuarios').doc(cred.user.uid).set({
+      uid:cred.user.uid, nome:name, email, perfil:role,
+      dataCadastro:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    toast('Conta criada!','Bem-vindo ao SafeStock.','success');
+  }catch(e){
+    btn.disabled=false; btn.innerHTML='<span>Cadastrar</span>';
+    showError('reg-general-err',firebaseErrorMsg(e.code));
+  }
+}
+
+function doLogout(){
+  confirmDelete('Deseja realmente sair do sistema?', async ()=>{
+    await auth.signOut();
+    toast('Até logo!','Sessão encerrada.','info');
+  });
+}
+
+function firebaseErrorMsg(code){
+  const m={
+    'auth/user-not-found':'Usuário não encontrado.',
+    'auth/wrong-password':'Senha incorreta.',
+    'auth/email-already-in-use':'E-mail já cadastrado.',
+    'auth/invalid-email':'E-mail inválido.',
+    'auth/weak-password':'Senha fraca (min. 6 chars).',
+    'auth/too-many-requests':'Muitas tentativas. Tente mais tarde.',
+    'auth/network-request-failed':'Erro de rede. Verifique sua conexão.',
+    'auth/invalid-credential':'Credenciais inválidas.',
+  };
+  return m[code]||`Erro: ${code}`;
+}
+
+/* ═══════════════════════════════════════════
+   5. AUTH STATE OBSERVER
+═══════════════════════════════════════════ */
+auth.onAuthStateChanged(async user=>{
+  if(user){
+    showLoader();
+    // Carrega dados do usuário
+    const snap=await db.collection('usuarios').doc(user.uid).get();
+    currentUser={uid:user.uid, email:user.email, nome:user.displayName||user.email, perfil:'usuario', ...snap.data()};
+    setupUI();
+    await loadAllData();
+    hideLoader();
+    $('auth-screen').classList.add('hidden');
+    $('app').classList.remove('hidden');
+    navigate('dashboard');
+  } else {
+    currentUser=null;
+    allEPIs=[]; allMov=[];
+    $('app').classList.add('hidden');
+    $('auth-screen').classList.remove('hidden');
+    hideLoader();
+  }
+});
+
+/* ═══════════════════════════════════════════
+   6. SETUP UI AFTER LOGIN
+═══════════════════════════════════════════ */
+function setupUI(){
+  const initials=(currentUser.nome||'?').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  $('sidebar-avatar').textContent=initials;
+  $('sidebar-user-name').textContent=currentUser.nome||currentUser.email;
+  $('sidebar-user-role').textContent=currentUser.perfil==='admin'?'Administrador':'Usuário';
+
+  // Hide/show admin-only elements
+  document.querySelectorAll('.admin-only').forEach(el=>{
+    el.style.display=currentUser.perfil==='admin'?'':'none';
+  });
+}
+
+/* ═══════════════════════════════════════════
+   7. DATA LOADING
+═══════════════════════════════════════════ */
+async function loadAllData(){
+  const [episSnap, movSnap]=await Promise.all([
+    db.collection('epis').orderBy('nome').get(),
+    db.collection('movimentacoes').orderBy('data','desc').limit(200).get()
+  ]);
+  allEPIs=episSnap.docs.map(d=>({id:d.id,...d.data()}));
+  allMov =movSnap.docs.map(d=>({id:d.id,...d.data()}));
+  updateAlertBadge();
+}
+
+function updateAlertBadge(){
+  const low=allEPIs.filter(e=>e.quantidade<=e.estoqueMinimo||e.quantidade===0).length;
+  const badge=$('alert-badge');
+  if(low>0){badge.textContent=low;badge.classList.remove('hidden')}
+  else{badge.classList.add('hidden')}
+}
+
+/* ═══════════════════════════════════════════
+   8. NAVIGATION
+═══════════════════════════════════════════ */
+const pagesMeta={
+  dashboard:  {title:'Dashboard',      addLabel:null},
+  epis:       {title:'Estoque de EPIs',addLabel:'Novo EPI'},
+  movimentacoes:{title:'Movimentações',addLabel:'Nova Movimentação'},
+  historico:  {title:'Histórico',      addLabel:null},
+  alertas:    {title:'Alertas de Estoque', addLabel:null},
+  usuarios:   {title:'Usuários',       addLabel:null},
+};
+
+function navigate(page){
+  currentPage=page;
+  document.querySelectorAll('.nav-item').forEach(n=>{
+    n.classList.toggle('active',n.dataset.page===page);
+  });
+  const meta=pagesMeta[page]||{};
+  $('topbar-title').textContent=meta.title||page;
+  const addBtn=$('topbar-add-btn');
+  if(meta.addLabel && currentUser?.perfil==='admin'){
+    addBtn.classList.remove('hidden');
+    $('topbar-add-label').textContent=meta.addLabel;
+  } else {
+    addBtn.classList.add('hidden');
+  }
+  renderPage(page);
+  closeMobileMenu();
+}
+
+function handleTopbarAdd(){
+  if(currentPage==='epis') openEPIModal();
+  else if(currentPage==='movimentacoes') openMovModal();
+}
+
+/* ═══════════════════════════════════════════
+   9. SIDEBAR
+═══════════════════════════════════════════ */
+function toggleSidebar(){$('sidebar').classList.toggle('collapsed')}
+function openMobileMenu(){
+  $('sidebar').classList.add('mobile-open');
+  $('sidebar-overlay').classList.add('show');
+}
+function closeMobileMenu(){
+  $('sidebar').classList.remove('mobile-open');
+  $('sidebar-overlay').classList.remove('show');
+}
+
+/* ═══════════════════════════════════════════
+   10. PAGE RENDERING DISPATCHER
+═══════════════════════════════════════════ */
+function renderPage(page){
+  const c=$('page-content');
+  c.innerHTML='';
+  episPage=1;
+  if(page==='dashboard')    renderDashboard(c);
+  else if(page==='epis')    renderEPIs(c);
+  else if(page==='movimentacoes') renderMovimentacoes(c);
+  else if(page==='historico')renderHistorico(c);
+  else if(page==='alertas') renderAlertas(c);
+  else if(page==='usuarios')renderUsuarios(c);
+}
+
+/* ═══════════════════════════════════════════
+   11. DASHBOARD PAGE
+═══════════════════════════════════════════ */
+function renderDashboard(c){
+  const total=allEPIs.length;
+  const totalQtd=allEPIs.reduce((s,e)=>s+(e.quantidade||0),0);
+  const baixo=allEPIs.filter(e=>e.quantidade>0&&e.quantidade<=e.estoqueMinimo).length;
+  const zero =allEPIs.filter(e=>e.quantidade===0).length;
+  const recentes=allMov.slice(0,6);
+
+  // Near expiry (30 days)
+  const hoje=new Date(); const em30=new Date(); em30.setDate(hoje.getDate()+30);
+  const vencendo=allEPIs.filter(e=>e.validade&&new Date(e.validade)<=em30&&new Date(e.validade)>=hoje).length;
+
+  c.innerHTML=`
+  <div class="stats-grid">
+    <div class="stat-card" style="--card-accent:var(--accent)">
+      <div class="stat-card-icon"><i class="fas fa-hard-hat"></i></div>
+      <div class="stat-card-value">${total}</div>
+      <div class="stat-card-label">EPIs cadastrados</div>
+    </div>
+    <div class="stat-card" style="--card-accent:var(--accent2)">
+      <div class="stat-card-icon" style="background:rgba(34,197,94,.12);color:var(--accent2)"><i class="fas fa-boxes-stacked"></i></div>
+      <div class="stat-card-value">${totalQtd}</div>
+      <div class="stat-card-label">Unidades em estoque</div>
+    </div>
+    <div class="stat-card" style="--card-accent:var(--warn)">
+      <div class="stat-card-icon" style="background:rgba(245,158,11,.12);color:var(--warn)"><i class="fas fa-triangle-exclamation"></i></div>
+      <div class="stat-card-value">${baixo}</div>
+      <div class="stat-card-label">Estoque baixo</div>
+    </div>
+    <div class="stat-card" style="--card-accent:var(--danger)">
+      <div class="stat-card-icon" style="background:rgba(239,68,68,.12);color:var(--danger)"><i class="fas fa-circle-xmark"></i></div>
+      <div class="stat-card-value">${zero}</div>
+      <div class="stat-card-label">Sem estoque</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><i class="fas fa-bell" style="color:var(--warn);margin-right:.4rem"></i>Alertas</div>
+        <button class="btn btn-ghost btn-sm" onclick="navigate('alertas')">Ver todos</button>
+      </div>
+      <div class="alert-list" id="dash-alerts">
+        ${renderDashAlerts(zero,baixo,vencendo)}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><i class="fas fa-clock-rotate-left" style="color:var(--accent);margin-right:.4rem"></i>Últimas movimentações</div>
+        <button class="btn btn-ghost btn-sm" onclick="navigate('historico')">Ver histórico</button>
+      </div>
+      <div class="recent-list" id="dash-recent">
+        ${renderDashRecent(recentes)}
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+function renderDashAlerts(zero,baixo,vencendo){
+  if(!zero&&!baixo&&!vencendo) return '<div class="empty-state" style="padding:1.5rem"><i class="fas fa-circle-check" style="color:var(--accent2)"></i><p>Nenhum alerta no momento</p></div>';
+  let html='';
+  if(zero) html+=`<div class="alert-item alert-item-danger"><i class="fas fa-circle-xmark" style="color:var(--danger)"></i><div class="alert-item-info"><strong>${zero} EPI(s)</strong> sem estoque</div></div>`;
+  if(baixo) html+=`<div class="alert-item alert-item-warn"><i class="fas fa-triangle-exclamation" style="color:var(--warn)"></i><div class="alert-item-info"><strong>${baixo} EPI(s)</strong> abaixo do mínimo</div></div>`;
+  if(vencendo) html+=`<div class="alert-item alert-item-warn"><i class="fas fa-calendar-xmark" style="color:var(--warn)"></i><div class="alert-item-info"><strong>${vencendo} EPI(s)</strong> vencendo em 30 dias</div></div>`;
+  return html;
+}
+
+function renderDashRecent(movs){
+  if(!movs.length) return '<div class="empty-state" style="padding:1rem"><i class="fas fa-inbox"></i><p>Nenhuma movimentação</p></div>';
+  return movs.map(m=>`
+    <div class="recent-item">
+      <span class="recent-dot dot-${m.tipo}"></span>
+      <div style="flex:1;min-width:0">
+        <div class="truncate" style="font-size:.82rem;font-weight:500">${m.nomeEpi||'—'}</div>
+        <div class="text-xs text-muted">${capitalize(m.tipo)} · ${formatDate(m.data)}</div>
+      </div>
+      <span class="badge ${m.tipo==='entrada'?'badge-success':m.tipo==='saida'?'badge-danger':'badge-warn'}">${m.tipo==='entrada'?'+':''}${m.tipo==='saida'?'-':''}${m.quantidade}</span>
+    </div>`).join('');
+}
+
+/* ═══════════════════════════════════════════
+   12. EPIs PAGE
+═══════════════════════════════════════════ */
+function renderEPIs(c){
+  c.innerHTML=`
+  <div class="card">
+    <div class="filter-bar">
+      <div class="search-input-wrap">
+        <i class="fas fa-search"></i>
+        <input type="text" id="epi-search" class="form-input search-input" placeholder="Buscar por nome, código..."/>
+      </div>
+      <select id="epi-filter-cat" class="form-select" style="width:auto">
+        <option value="">Todas categorias</option>
+        ${[...new Set(allEPIs.map(e=>e.categoria).filter(Boolean))].map(c=>`<option>${c}</option>`).join('')}
+      </select>
+      <select id="epi-filter-status" class="form-select" style="width:auto">
+        <option value="">Todos status</option>
+        <option value="ok">Em estoque</option>
+        <option value="baixo">Estoque baixo</option>
+        <option value="zero">Sem estoque</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="exportCSV()"><i class="fas fa-file-csv"></i> CSV</button>
+      <button class="btn btn-ghost btn-sm" onclick="printRelatorio()"><i class="fas fa-print"></i> Imprimir</button>
+    </div>
+    <div class="table-container" id="epi-table-wrap"></div>
+    <div id="epi-pagination"></div>
+  </div>`;
+  $('epi-search').addEventListener('input', ()=>{episPage=1;renderEPITable()});
+  $('epi-filter-cat').addEventListener('change',()=>{episPage=1;renderEPITable()});
+  $('epi-filter-status').addEventListener('change',()=>{episPage=1;renderEPITable()});
+  renderEPITable();
+}
+
+function getFilteredEPIs(){
+  const q=($('epi-search')?.value||'').toLowerCase();
+  const cat=$('epi-filter-cat')?.value||'';
+  const st=$('epi-filter-status')?.value||'';
+  return allEPIs.filter(e=>{
+    const matchQ=!q||(e.nome||'').toLowerCase().includes(q)||(e.codigo||'').toLowerCase().includes(q)||(e.categoria||'').toLowerCase().includes(q);
+    const matchC=!cat||e.categoria===cat;
+    let matchS=true;
+    if(st==='zero') matchS=e.quantidade===0;
+    else if(st==='baixo') matchS=e.quantidade>0&&e.quantidade<=(e.estoqueMinimo||0);
+    else if(st==='ok') matchS=e.quantidade>(e.estoqueMinimo||0);
+    return matchQ&&matchC&&matchS;
+  });
+}
+
+function renderEPITable(){
+  const filtered=getFilteredEPIs();
+  const total=filtered.length;
+  const pages=Math.ceil(total/ITEMS_PAGE)||1;
+  if(episPage>pages)episPage=pages;
+  const slice=filtered.slice((episPage-1)*ITEMS_PAGE, episPage*ITEMS_PAGE);
+  const wrap=$('epi-table-wrap');
+  const pag=$('epi-pagination');
+  if(!wrap)return;
+  if(!slice.length){
+    wrap.innerHTML=`<div class="empty-state"><i class="fas fa-hard-hat"></i><p>Nenhum EPI encontrado</p></div>`;
+    if(pag)pag.innerHTML='';return;
+  }
+  wrap.innerHTML=`<table>
+    <thead><tr>
+      <th>Nome</th><th>Código</th><th>Categoria</th>
+      <th>Qtd</th><th>Mínimo</th><th>Status</th>
+      <th style="text-align:right">Ações</th>
+    </tr></thead>
+    <tbody>${slice.map(e=>epiRow(e)).join('')}</tbody>
+  </table>`;
+  // Pagination
+  if(pag){
+    let html='';
+    html+=`<div class="pagination">`;
+    html+=`<button class="page-btn" ${episPage<=1?'disabled':''} onclick="goPage(${episPage-1})"><i class="fas fa-chevron-left"></i></button>`;
+    for(let i=1;i<=pages;i++){
+      if(pages>7&&Math.abs(i-episPage)>2&&i!==1&&i!==pages) continue;
+      html+=`<button class="page-btn${episPage===i?' active':''}" onclick="goPage(${i})">${i}</button>`;
+    }
+    html+=`<button class="page-btn" ${episPage>=pages?'disabled':''} onclick="goPage(${episPage+1})"><i class="fas fa-chevron-right"></i></button>`;
+    html+=`<span class="page-info">${total} registros</span></div>`;
+    pag.innerHTML=html;
+  }
+}
+
+function goPage(p){episPage=p;renderEPITable()}
+
+function epiRow(e){
+  const status=epiStatus(e);
+  const hoje=new Date(); const em30=new Date(); em30.setDate(hoje.getDate()+30);
+  const venc=e.validade&&new Date(e.validade)<=em30?`<span class="badge badge-warn" title="Validade: ${e.validade}"><i class="fas fa-calendar-xmark"></i></span>`:'';
+  const isAdmin=currentUser?.perfil==='admin';
+  return `<tr>
+    <td><span class="font-bold">${esc(e.nome)}</span> ${venc}</td>
+    <td><code style="font-size:.78rem;color:var(--text2)">${esc(e.codigo||'—')}</code></td>
+    <td>${e.categoria?`<span class="tag">${esc(e.categoria)}</span>`:'—'}</td>
+    <td><strong>${e.quantidade??0}</strong> ${e.unidade||''}</td>
+    <td>${e.estoqueMinimo??0}</td>
+    <td>${statusBadge(status)}</td>
+    <td>
+      <div class="td-actions" style="justify-content:flex-end">
+        <button class="btn btn-ghost btn-sm btn-icon" title="Movimentar" onclick="openMovModal('${e.id}')"><i class="fas fa-arrows-rotate"></i></button>
+        ${isAdmin?`<button class="btn btn-warn btn-sm btn-icon" title="Editar" onclick="openEPIModal('${e.id}')"><i class="fas fa-pen"></i></button>
+        <button class="btn btn-danger btn-sm btn-icon" title="Excluir" onclick="deleteEPI('${e.id}','${esc(e.nome)}')"><i class="fas fa-trash"></i></button>`:''}
+      </div>
+    </td>
+  </tr>`;
+}
+
+function epiStatus(e){
+  if((e.quantidade||0)===0) return 'zero';
+  if((e.quantidade||0)<=(e.estoqueMinimo||0)) return 'baixo';
+  return 'ok';
+}
+
+function statusBadge(s){
+  if(s==='zero') return `<span class="badge badge-danger"><i class="fas fa-circle-xmark"></i> Sem estoque</span>`;
+  if(s==='baixo') return `<span class="badge badge-warn"><i class="fas fa-triangle-exclamation"></i> Baixo</span>`;
+  return `<span class="badge badge-success"><i class="fas fa-circle-check"></i> Ok</span>`;
+}
+
+/* ═══════════════════════════════════════════
+   13. EPI MODAL
+═══════════════════════════════════════════ */
+function openEPIModal(id=null){
+  epiEditId=id;
+  $('epi-modal-title').textContent=id?'Editar EPI':'Novo EPI';
+  const fields=['nome','codigo','categoria','tamanho','unidade','fabricante','quantidade','estoque-min','validade','ca','obs'];
+  fields.forEach(f=>{const el=$(`epi-${f}`);if(el)el.value=''});
+  if(id){
+    const e=allEPIs.find(x=>x.id===id);
+    if(e){
+      $('epi-nome').value=e.nome||'';
+      $('epi-codigo').value=e.codigo||'';
+      $('epi-categoria').value=e.categoria||'';
+      $('epi-tamanho').value=e.tamanho||'';
+      $('epi-unidade').value=e.unidade||'Un';
+      $('epi-fabricante').value=e.fabricante||'';
+      $('epi-quantidade').value=e.quantidade??0;
+      $('epi-estoque-min').value=e.estoqueMinimo??0;
+      $('epi-validade').value=e.validade||'';
+      $('epi-ca').value=e.ca||'';
+      $('epi-obs').value=e.observacoes||'';
+    }
+  }
+  openModal('epi-modal');
+}
+
+async function saveEPI(){
+  const nome=$('epi-nome').value.trim();
+  const codigo=$('epi-codigo').value.trim();
+  const categoria=$('epi-categoria').value;
+  const qtd=parseInt($('epi-quantidade').value)||0;
+  const min=parseInt($('epi-estoque-min').value)||0;
+  if(!nome||!codigo||!categoria){toast('Campos obrigatórios','Preencha nome, código e categoria.','warn');return}
+  // Check duplicate code (excluding self)
+  const dup=allEPIs.find(e=>e.codigo===codigo&&e.id!==epiEditId);
+  if(dup){toast('Código duplicado',`O código "${codigo}" já está em uso.`,'warn');return}
+  const data={
+    nome, codigo, categoria,
+    tamanho:$('epi-tamanho').value.trim(),
+    unidade:$('epi-unidade').value,
+    fabricante:$('epi-fabricante').value.trim(),
+    quantidade:qtd, estoqueMinimo:min,
+    validade:$('epi-validade').value||null,
+    ca:$('epi-ca').value.trim(),
+    observacoes:$('epi-obs').value.trim(),
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+  };
+  showLoader();
+  try{
+    if(epiEditId){
+      await db.collection('epis').doc(epiEditId).update(data);
+      const idx=allEPIs.findIndex(e=>e.id===epiEditId);
+      if(idx>-1)allEPIs[idx]={...allEPIs[idx],...data};
+      toast('EPI atualizado!','','success');
+    } else {
+      data.dataCadastro=firebase.firestore.FieldValue.serverTimestamp();
+      const ref=await db.collection('epis').add(data);
+      allEPIs.push({id:ref.id,...data});
+      allEPIs.sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+      toast('EPI cadastrado!','','success');
+    }
+    closeModal('epi-modal');
+    updateAlertBadge();
+    if(currentPage==='epis') renderEPITable();
+    if(currentPage==='dashboard') renderPage('dashboard');
+  }catch(e){toast('Erro ao salvar',e.message,'error')}
+  hideLoader();
+}
+
+async function deleteEPI(id,nome){
+  confirmDelete(`Excluir o EPI "${nome}"? Esta ação não pode ser desfeita.`, async()=>{
+    showLoader();
+    try{
+      await db.collection('epis').doc(id).delete();
+      allEPIs=allEPIs.filter(e=>e.id!==id);
+      toast('EPI excluído!','','success');
+      updateAlertBadge();
+      if(currentPage==='epis') renderEPITable();
+      if(currentPage==='dashboard') renderPage('dashboard');
+    }catch(e){toast('Erro',e.message,'error')}
+    hideLoader();
+  });
+}
+
+/* ═══════════════════════════════════════════
+   14. MOVIMENTAÇÃO PAGE & MODAL
+═══════════════════════════════════════════ */
+function renderMovimentacoes(c){
+  c.innerHTML=`
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">Registrar Movimentação</div>
+      <p class="text-sm text-muted">Clique em "Nova Movimentação" para registrar entrada, saída ou ajuste</p>
+    </div>
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem">
+      <button class="btn btn-success" onclick="openMovModal();setMovTipo('entrada')"><i class="fas fa-arrow-down"></i> Entrada de EPI</button>
+      <button class="btn btn-danger" onclick="openMovModal();setMovTipo('saida')"><i class="fas fa-arrow-up"></i> Saída de EPI</button>
+      <button class="btn btn-warn" onclick="openMovModal();setMovTipo('ajuste')"><i class="fas fa-scale-balanced"></i> Ajuste Manual</button>
+    </div>
+    <div class="divider"></div>
+    <div class="section-title"><i class="fas fa-list"></i> Movimentações recentes</div>
+    <div class="table-container">
+      <table>
+        <thead><tr><th>Data</th><th>EPI</th><th>Tipo</th><th>Qtd</th><th>Responsável</th><th>Destino</th><th>Obs</th></tr></thead>
+        <tbody>${allMov.slice(0,30).map(m=>movRow(m)).join('')||`<tr><td colspan="7"><div class="empty-state"><i class="fas fa-inbox"></i><p>Nenhuma movimentação registrada</p></div></td></tr>`}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function movRow(m){
+  const tipo=m.tipo||'';
+  return `<tr>
+    <td class="text-sm">${formatDate(m.data)}</td>
+    <td><strong class="text-sm">${esc(m.nomeEpi||'—')}</strong></td>
+    <td><span class="badge mov-type-badge ${tipo}">${capitalize(tipo)}</span></td>
+    <td><strong>${tipo==='saida'?'-':tipo==='entrada'?'+':'±'}${m.quantidade||0}</strong></td>
+    <td class="text-sm text-muted">${esc(m.usuarioResponsavel||'—')}</td>
+    <td class="text-sm">${esc(m.destino||'—')}</td>
+    <td class="text-sm text-muted truncate" style="max-width:150px">${esc(m.observacao||'')}</td>
+  </tr>`;
+}
+
+function openMovModal(epiId=null){
+  clearError('mov-error');
+  $('mov-data').value=new Date().toISOString().split('T')[0];
+  $('mov-qtd').value='';
+  $('mov-destino').value='';
+  $('mov-obs').value='';
+  // Populate EPI select
+  const sel=$('mov-epi');
+  sel.innerHTML='<option value="">Selecione o EPI...</option>';
+  allEPIs.forEach(e=>{
+    const o=document.createElement('option');
+    o.value=e.id; o.textContent=`${e.nome} (${e.quantidade} ${e.unidade||''})`;
+    if(epiId&&e.id===epiId)o.selected=true;
+    sel.appendChild(o);
+  });
+  sel.onchange=updateMovHint;
+  $('mov-tipo').onchange=updateMovHint;
+  updateMovHint();
+  openModal('mov-modal');
+}
+
+function setMovTipo(tipo){setTimeout(()=>{$('mov-tipo').value=tipo;updateMovHint()},50)}
+
+function updateMovHint(){
+  const epiId=$('mov-epi').value;
+  const tipo=$('mov-tipo').value;
+  const hint=$('mov-estoque-hint');
+  if(!epiId){hint.textContent='';return}
+  const e=allEPIs.find(x=>x.id===epiId);
+  if(e) hint.textContent=`Estoque atual: ${e.quantidade} ${e.unidade||''}${tipo==='saida'?' · Máx saída: '+e.quantidade:''}`;
+}
+
+async function saveMovimentacao(){
+  clearError('mov-error');
+  const epiId=$('mov-epi').value;
+  const tipo =$('mov-tipo').value;
+  const qtd  =parseInt($('mov-qtd').value)||0;
+  const data =$('mov-data').value;
+  if(!epiId||!tipo||qtd<=0||!data){
+    showError('mov-error','Preencha EPI, tipo, quantidade e data.');return;
+  }
+  const epi=allEPIs.find(e=>e.id===epiId);
+  if(!epi){showError('mov-error','EPI não encontrado.');return}
+  if(tipo==='saida'&&qtd>epi.quantidade){
+    showError('mov-error',`Quantidade insuficiente. Disponível: ${epi.quantidade}.`);return;
+  }
+  let novaQtd=epi.quantidade;
+  if(tipo==='entrada') novaQtd+=qtd;
+  else if(tipo==='saida') novaQtd-=qtd;
+  else novaQtd=qtd; // ajuste
+
+  showLoader();
+  try{
+    const movData={
+      epiId, nomeEpi:epi.nome, tipo, quantidade:qtd,
+      data, usuarioResponsavel:currentUser.nome||currentUser.email,
+      destino:$('mov-destino').value.trim(),
+      observacao:$('mov-obs').value.trim(),
+      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
+    };
+    await db.collection('movimentacoes').add(movData);
+    await db.collection('epis').doc(epiId).update({quantidade:novaQtd});
+    // Update local cache
+    epi.quantidade=novaQtd;
+    allMov.unshift({id:'tmp_'+Date.now(),...movData});
+    toast('Movimentação registrada!','Estoque atualizado.','success');
+    closeModal('mov-modal');
+    updateAlertBadge();
+    if(currentPage==='movimentacoes') renderPage('movimentacoes');
+    if(currentPage==='dashboard') renderPage('dashboard');
+    if(currentPage==='epis') renderEPITable();
+  }catch(e){toast('Erro',e.message,'error')}
+  hideLoader();
+}
+
+/* ═══════════════════════════════════════════
+   15. HISTÓRICO PAGE
+═══════════════════════════════════════════ */
+function renderHistorico(c){
+  c.innerHTML=`
+  <div class="card">
+    <div class="filter-bar">
+      <div class="search-input-wrap" style="min-width:180px">
+        <i class="fas fa-search"></i>
+        <input type="text" id="hist-search" class="form-input search-input" placeholder="Buscar por EPI..."/>
+      </div>
+      <select id="hist-tipo" class="form-select" style="width:auto">
+        <option value="">Todos os tipos</option>
+        <option value="entrada">Entrada</option>
+        <option value="saida">Saída</option>
+        <option value="ajuste">Ajuste</option>
+      </select>
+      <label class="form-label" style="margin:0;white-space:nowrap">De:</label>
+      <input type="date" id="hist-de" class="form-input" style="width:auto"/>
+      <label class="form-label" style="margin:0;white-space:nowrap">Até:</label>
+      <input type="date" id="hist-ate" class="form-input" style="width:auto"/>
+      <button class="btn btn-ghost btn-sm" onclick="renderHistoricoTable()"><i class="fas fa-filter"></i> Filtrar</button>
+    </div>
+    <div class="table-container" id="hist-table"></div>
+  </div>`;
+  $('hist-search').addEventListener('input',renderHistoricoTable);
+  $('hist-tipo').addEventListener('change',renderHistoricoTable);
+  renderHistoricoTable();
+}
+
+function renderHistoricoTable(){
+  const q=($('hist-search')?.value||'').toLowerCase();
+  const tipo=$('hist-tipo')?.value||'';
+  const de  =$('hist-de')?.value||'';
+  const ate =$('hist-ate')?.value||'';
+  const filtered=allMov.filter(m=>{
+    const matchQ=!q||(m.nomeEpi||'').toLowerCase().includes(q);
+    const matchT=!tipo||m.tipo===tipo;
+    const matchD=!de||m.data>=de;
+    const matchA=!ate||m.data<=ate;
+    return matchQ&&matchT&&matchD&&matchA;
+  });
+  const wrap=$('hist-table');
+  if(!wrap)return;
+  if(!filtered.length){wrap.innerHTML=`<div class="empty-state"><i class="fas fa-clock-rotate-left"></i><p>Nenhuma movimentação encontrada</p></div>`;return}
+  wrap.innerHTML=`<table>
+    <thead><tr><th>Data</th><th>EPI</th><th>Tipo</th><th>Qtd</th><th>Responsável</th><th>Destino</th><th>Observação</th></tr></thead>
+    <tbody>${filtered.map(m=>movRow(m)).join('')}</tbody>
+  </table>`;
+}
+
+/* ═══════════════════════════════════════════
+   16. ALERTAS PAGE
+═══════════════════════════════════════════ */
+function renderAlertas(c){
+  const hoje=new Date(); const em30=new Date(); em30.setDate(hoje.getDate()+30);
+  const zeros=allEPIs.filter(e=>e.quantidade===0);
+  const baixos=allEPIs.filter(e=>e.quantidade>0&&e.quantidade<=(e.estoqueMinimo||0));
+  const vencendo=allEPIs.filter(e=>e.validade&&new Date(e.validade)<=em30&&new Date(e.validade)>=hoje);
+  const vencidos=allEPIs.filter(e=>e.validade&&new Date(e.validade)<hoje);
+
+  c.innerHTML=`
+  ${alertSection('Sem Estoque','fa-circle-xmark','danger',zeros,'Nenhum EPI sem estoque — ótimo!')}
+  ${alertSection('Estoque Baixo','fa-triangle-exclamation','warn',baixos,'Todos os EPIs estão com estoque adequado!')}
+  ${alertSection('Vencendo em 30 dias','fa-calendar-xmark','warn',vencendo,'Nenhum EPI vencendo nos próximos 30 dias.')}
+  ${alertSection('Vencidos','fa-calendar-minus','danger',vencidos,'Nenhum EPI vencido.')}
+  `;
+}
+
+function alertSection(title,icon,type,items,emptyMsg){
+  const color=type==='danger'?'var(--danger)':'var(--warn)';
+  return `<div class="card" style="margin-bottom:1.25rem">
+    <div class="card-header">
+      <div class="card-title" style="color:${color}"><i class="fas ${icon}" style="margin-right:.4rem"></i>${title} <span class="badge ${type==='danger'?'badge-danger':'badge-warn'}" style="margin-left:.4rem">${items.length}</span></div>
+    </div>
+    ${items.length?`<div class="table-container"><table>
+      <thead><tr><th>Nome</th><th>Código</th><th>Qtd</th><th>Mínimo</th><th>Validade</th><th>Ações</th></tr></thead>
+      <tbody>${items.map(e=>`<tr>
+        <td><strong>${esc(e.nome)}</strong></td>
+        <td><code style="font-size:.78rem;color:var(--text2)">${esc(e.codigo||'—')}</code></td>
+        <td>${e.quantidade}</td><td>${e.estoqueMinimo||0}</td>
+        <td class="${e.validade&&new Date(e.validade)<new Date()?'text-danger':''}">${e.validade||'—'}</td>
+        <td><button class="btn btn-primary btn-sm" onclick="openMovModal('${e.id}')"><i class="fas fa-arrows-rotate"></i> Movimentar</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:`<div class="empty-state" style="padding:1.25rem"><i class="fas fa-circle-check" style="color:var(--accent2)"></i><p>${emptyMsg}</p></div>`}
+  </div>`;
+}
+
+/* ═══════════════════════════════════════════
+   17. USUÁRIOS PAGE (admin only)
+═══════════════════════════════════════════ */
+async function renderUsuarios(c){
+  if(currentUser?.perfil!=='admin'){
+    c.innerHTML=`<div class="empty-state" style="padding:3rem"><i class="fas fa-lock"></i><p>Acesso restrito a administradores</p></div>`;
+    return;
+  }
+  c.innerHTML=`<div class="card"><div style="text-align:center;padding:1.5rem"><span class="spinner"></span> Carregando usuários...</div></div>`;
+  try{
+    const snap=await db.collection('usuarios').get();
+    const users=snap.docs.map(d=>({id:d.id,...d.data()}));
+    c.innerHTML=`<div class="card">
+      <div class="card-header">
+        <div class="card-title">Usuários cadastrados</div>
+        <span class="badge badge-info">${users.length} usuário(s)</span>
+      </div>
+      <div class="table-container"><table>
+        <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Cadastro</th><th>Ações</th></tr></thead>
+        <tbody>${users.map(u=>`<tr>
+          <td><strong>${esc(u.nome||'—')}</strong></td>
+          <td class="text-sm">${esc(u.email||'—')}</td>
+          <td>${u.perfil==='admin'?`<span class="badge badge-info">Admin</span>`:`<span class="badge badge-neutral">Usuário</span>`}</td>
+          <td class="text-sm text-muted">${u.dataCadastro?.toDate?.()?formatDateObj(u.dataCadastro.toDate()):'—'}</td>
+          <td>${u.uid!==currentUser.uid?`<button class="btn btn-warn btn-sm" onclick="toggleUserRole('${u.id}','${u.perfil}','${esc(u.nome)}')"><i class="fas fa-user-gear"></i> ${u.perfil==='admin'?'→ Usuário':'→ Admin'}</button>`:'<span class="text-muted text-xs">Você</span>'}</td>
+        </tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+  }catch(e){c.innerHTML=`<div class="card"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Erro ao carregar: ${e.message}</p></div></div>`}
+}
+
+async function toggleUserRole(uid,currentRole,nome){
+  const newRole=currentRole==='admin'?'usuario':'admin';
+  confirmDelete(`Alterar perfil de "${nome}" para ${newRole==='admin'?'Administrador':'Usuário'}?`,async()=>{
+    showLoader();
+    try{
+      await db.collection('usuarios').doc(uid).update({perfil:newRole});
+      toast('Perfil atualizado!','','success');
+      renderPage('usuarios');
+    }catch(e){toast('Erro',e.message,'error')}
+    hideLoader();
+  });
+}
+
+/* ═══════════════════════════════════════════
+   18. EXPORT / PRINT
+═══════════════════════════════════════════ */
+function exportCSV(){
+  const filtered=getFilteredEPIs();
+  const rows=[['Nome','Código','Categoria','Tamanho','Unidade','Quantidade','Mínimo','Fabricante','Validade','CA','Status']];
+  filtered.forEach(e=>rows.push([e.nome,e.codigo,e.categoria,e.tamanho,e.unidade,e.quantidade,e.estoqueMinimo,e.fabricante,e.validade||'',e.ca,epiStatus(e)]));
+  const csv=rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='estoque-epis.csv';a.click();
+  toast('CSV exportado!','','success');
+}
+
+function printRelatorio(){
+  const filtered=getFilteredEPIs();
+  const rows=filtered.map(e=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.codigo||'')}</td><td>${esc(e.categoria||'')}</td><td>${e.quantidade}</td><td>${e.estoqueMinimo||0}</td><td>${epiStatus(e).toUpperCase()}</td></tr>`).join('');
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>Relatório EPIs</title>
+  <style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px}th{background:#f0f0f0}</style>
+  </head><body><h2>Relatório de Estoque de EPIs — SafeStock</h2><p>Gerado em: ${new Date().toLocaleString('pt-BR')}</p><table><thead><tr><th>Nome</th><th>Código</th><th>Categoria</th><th>Qtd</th><th>Mínimo</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`);
+  win.document.close();win.print();
+}
+
+/* ═══════════════════════════════════════════
+   19. UTILS
+═══════════════════════════════════════════ */
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function capitalize(s){return (s||'').charAt(0).toUpperCase()+(s||'').slice(1)}
+function formatDate(d){
+  if(!d) return '—';
+  if(typeof d==='string') return new Date(d+'T12:00:00').toLocaleDateString('pt-BR');
+  if(d.toDate) return d.toDate().toLocaleDateString('pt-BR');
+  return '—';
+}
+function formatDateObj(d){return d.toLocaleDateString('pt-BR')}
+
+/* ═══════════════════════════════════════════
+   20. KEYBOARD SHORTCUTS
+═══════════════════════════════════════════ */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){
+    ['epi-modal','mov-modal','confirm-modal'].forEach(id=>{
+      if(!$(id).classList.contains('hidden'))closeModal(id);
+    });
+  }
+  if(e.key==='Enter'&&!$('app').classList.contains('hidden')&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)){
+    // no-op
+  }
+});
+
+/* ═══════════════════════════════════════════
+   20. HANDLE INITIAL LOADER
+═══════════════════════════════════════════ */
+// hideLoader() called after auth state resolves
+// Show loader until auth resolves
+</script>
+</body>
+</html>
