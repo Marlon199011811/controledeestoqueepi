@@ -626,14 +626,6 @@ tbody tr:last-child{border-bottom:none}
       <span class="input-icon" onclick="togglePass('reg-pass2',this)"><i class="fas fa-eye"></i></span>
       <div class="form-error hidden" id="reg-pass2-err"><i class="fas fa-circle-exclamation"></i><span></span></div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Perfil</label>
-      <select id="reg-role" class="form-select">
-        <option value="usuario">Usuário comum</option>
-        <option value="admin">Administrador</option>
-      </select>
-    </div>
-
     <div class="form-error hidden" id="reg-general-err" style="margin-bottom:.75rem"><i class="fas fa-circle-exclamation"></i><span></span></div>
 
     <button class="btn btn-primary btn-full" onclick="doRegister()" id="btn-register">
@@ -690,6 +682,7 @@ tbody tr:last-child{border-bottom:none}
       <div class="nav-item admin-only" data-page="usuarios" onclick="navigate('usuarios')">
         <span class="nav-icon"><i class="fas fa-users"></i></span>
         <span class="nav-label">Usuários</span>
+        <span class="nav-badge hidden" id="pending-badge">0</span>
       </div>
       <div class="nav-item" data-page="alertas" onclick="navigate('alertas')">
         <span class="nav-icon"><i class="fas fa-bell"></i></span>
@@ -1048,13 +1041,14 @@ async function doLogin(){
   }
 }
 
+let _registeringNewUser=false; // flag to prevent onAuthStateChanged race during registration
+
 async function doRegister(){
   clearError('reg-name-err');clearError('reg-email-err');clearError('reg-pass-err');clearError('reg-pass2-err');clearError('reg-general-err');
   const name  =$('reg-name').value.trim();
   const email =$('reg-email').value.trim();
   const pass  =$('reg-pass').value;
   const pass2 =$('reg-pass2').value;
-  const role  =$('reg-role').value;
   let ok=true;
   if(!name) {showError('reg-name-err','Informe o nome');ok=false}
   if(!email){showError('reg-email-err','Informe o e-mail');ok=false}
@@ -1063,14 +1057,31 @@ async function doRegister(){
   if(!ok)return;
   const btn=$('btn-register');
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Cadastrando...';
+  _registeringNewUser=true; // block onAuthStateChanged from showing loader
   try{
     const cred=await auth.createUserWithEmailAndPassword(email,pass);
     await db.collection('usuarios').doc(cred.user.uid).set({
-      uid:cred.user.uid, nome:name, email, perfil:role,
+      uid:cred.user.uid, nome:name, email, perfil:'usuario', status:'pendente',
       dataCadastro:firebase.firestore.FieldValue.serverTimestamp()
     });
-    toast('Conta criada!','Bem-vindo ao SafeStock.','success');
+    // Sign out immediately — must wait for admin approval
+    await auth.signOut();
+    _registeringNewUser=false;
+    btn.disabled=false; btn.innerHTML='<span>Cadastrar</span>';
+    showLogin();
+    // Show a friendly info message on login screen
+    const info=document.createElement('div');
+    info.className='form-hint';
+    info.style.cssText='background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;color:var(--accent);font-size:.84rem;text-align:center';
+    info.innerHTML='<i class="fas fa-clock" style="margin-right:.4rem"></i>Cadastro realizado! Aguarde a aprovação de um administrador para acessar o sistema.';
+    const loginCard=$('login-card');
+    const existingInfo=loginCard.querySelector('.reg-pending-info');
+    if(existingInfo) existingInfo.remove();
+    info.classList.add('reg-pending-info');
+    loginCard.querySelector('.auth-subtitle').after(info);
+    setTimeout(()=>info.remove(), 8000);
   }catch(e){
+    _registeringNewUser=false;
     btn.disabled=false; btn.innerHTML='<span>Cadastrar</span>';
     showError('reg-general-err',firebaseErrorMsg(e.code));
   }
@@ -1102,12 +1113,29 @@ function firebaseErrorMsg(code){
 ═══════════════════════════════════════════ */
 auth.onAuthStateChanged(async user=>{
   if(user){
+    if(_registeringNewUser) return; // ignore while registration is in progress
     showLoader();
     // Carrega dados do usuário
     const snap=await db.collection('usuarios').doc(user.uid).get();
-    currentUser={uid:user.uid, email:user.email, nome:user.displayName||user.email, perfil:'usuario', ...snap.data()};
+    const userData={uid:user.uid, email:user.email, nome:user.displayName||user.email, perfil:'usuario', ...snap.data()};
+    // Block access if account is pending approval
+    if(userData.status==='pendente'){
+      await auth.signOut();
+      hideLoader();
+      const info=document.createElement('div');
+      info.className='form-hint reg-pending-info';
+      info.style.cssText='background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:8px;padding:.75rem 1rem;margin-bottom:1rem;color:var(--warn);font-size:.84rem;text-align:center';
+      info.innerHTML='<i class="fas fa-clock" style="margin-right:.4rem"></i>Seu cadastro está <strong>aguardando aprovação</strong> de um administrador.';
+      const loginCard=$('login-card');
+      const existingInfo=loginCard.querySelector('.reg-pending-info');
+      if(existingInfo) existingInfo.remove();
+      loginCard.querySelector('.auth-subtitle').after(info);
+      return;
+    }
+    currentUser=userData;
     setupUI();
     await loadAllData();
+    if(currentUser.perfil==='admin') checkPendingUsers();
     hideLoader();
     $('auth-screen').classList.add('hidden');
     $('app').classList.remove('hidden');
@@ -1156,6 +1184,17 @@ function updateAlertBadge(){
   const badge=$('alert-badge');
   if(low>0){badge.textContent=low;badge.classList.remove('hidden')}
   else{badge.classList.add('hidden')}
+}
+
+async function checkPendingUsers(){
+  if(currentUser?.perfil!=='admin') return;
+  try{
+    const snap=await db.collection('usuarios').where('status','==','pendente').get();
+    const badge=$('pending-badge');
+    if(!badge) return;
+    if(snap.size>0){badge.textContent=snap.size;badge.classList.remove('hidden')}
+    else{badge.classList.add('hidden')}
+  }catch(e){/* silently ignore */}
 }
 
 /* ═══════════════════════════════════════════
@@ -1767,14 +1806,40 @@ async function renderUsuarios(c){
   try{
     const snap=await db.collection('usuarios').get();
     const users=snap.docs.map(d=>({id:d.id,...d.data()}));
-    c.innerHTML=`<div class="card">
+    const pendentes=users.filter(u=>u.status==='pendente');
+    const ativos=users.filter(u=>u.status!=='pendente');
+    let pendentesHTML='';
+    if(pendentes.length){
+      pendentesHTML=`
+      <div class="card" style="margin-bottom:1rem;border-color:rgba(245,158,11,.4)">
+        <div class="card-header">
+          <div class="card-title"><i class="fas fa-clock" style="color:var(--warn);margin-right:.4rem"></i>Aguardando aprovação</div>
+          <span class="badge badge-warn">${pendentes.length} pendente(s)</span>
+        </div>
+        <div class="table-container"><table>
+          <thead><tr><th>Nome</th><th>E-mail</th><th>Cadastro</th><th>Ações</th></tr></thead>
+          <tbody>${pendentes.map(u=>`<tr>
+            <td><strong>${esc(u.nome||'—')}</strong></td>
+            <td class="text-sm">${esc(u.email||'—')}</td>
+            <td class="text-sm text-muted">${u.dataCadastro?.toDate?.()?formatDateObj(u.dataCadastro.toDate()):'—'}</td>
+            <td>
+              <div class="td-actions">
+                <button class="btn btn-success btn-sm" onclick="approveUser('${u.id}','${esc(u.nome)}')"><i class="fas fa-check"></i> Aprovar</button>
+                <button class="btn btn-danger btn-sm" onclick="rejectUser('${u.id}','${esc(u.nome)}')"><i class="fas fa-trash"></i> Recusar</button>
+              </div>
+            </td>
+          </tr>`).join('')}</tbody>
+        </table></div>
+      </div>`;
+    }
+    c.innerHTML=pendentesHTML+`<div class="card">
       <div class="card-header">
-        <div class="card-title">Usuários cadastrados</div>
-        <span class="badge badge-info">${users.length} usuário(s)</span>
+        <div class="card-title">Usuários ativos</div>
+        <span class="badge badge-info">${ativos.length} usuário(s)</span>
       </div>
       <div class="table-container"><table>
         <thead><tr><th>Nome</th><th>E-mail</th><th>Perfil</th><th>Cadastro</th><th>Ações</th></tr></thead>
-        <tbody>${users.map(u=>`<tr>
+        <tbody>${ativos.map(u=>`<tr>
           <td><strong>${esc(u.nome||'—')}</strong></td>
           <td class="text-sm">${esc(u.email||'—')}</td>
           <td>${u.perfil==='admin'?`<span class="badge badge-info">Admin</span>`:`<span class="badge badge-neutral">Usuário</span>`}</td>
@@ -1784,6 +1849,32 @@ async function renderUsuarios(c){
       </table></div>
     </div>`;
   }catch(e){c.innerHTML=`<div class="card"><div class="empty-state"><i class="fas fa-exclamation-triangle"></i><p>Erro ao carregar: ${e.message}</p></div></div>`}
+}
+
+async function approveUser(uid, nome){
+  confirmDelete(`Aprovar acesso de "${nome}" ao sistema?`, async()=>{
+    showLoader();
+    try{
+      await db.collection('usuarios').doc(uid).update({status:'ativo'});
+      toast('Usuário aprovado!',`${nome} já pode acessar o sistema.`,'success');
+      checkPendingUsers();
+      renderPage('usuarios');
+    }catch(e){toast('Erro',e.message,'error')}
+    hideLoader();
+  });
+}
+
+async function rejectUser(uid, nome){
+  confirmDelete(`Recusar e remover o cadastro de "${nome}"?`, async()=>{
+    showLoader();
+    try{
+      await db.collection('usuarios').doc(uid).delete();
+      toast('Cadastro removido!',`O cadastro de ${nome} foi recusado.`,'warn');
+      checkPendingUsers();
+      renderPage('usuarios');
+    }catch(e){toast('Erro',e.message,'error')}
+    hideLoader();
+  });
 }
 
 async function toggleUserRole(uid,currentRole,nome){
