@@ -1635,7 +1635,7 @@ function openMovModal(epiId=null){
   sel.innerHTML='<option value="">Selecione o EPI...</option>';
   allEPIs.forEach(e=>{
     const o=document.createElement('option');
-    o.value=e.id; o.textContent=`${e.nome} (${e.quantidade} ${e.unidade||''})`;
+    o.value=e.id; o.textContent=`${e.nome}${e.tamanho?' ['+e.tamanho+']':''} (${e.quantidade} ${e.unidade||''})`;
     if(epiId&&e.id===epiId)o.selected=true;
     sel.appendChild(o);
   });
