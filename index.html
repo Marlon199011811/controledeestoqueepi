@@ -933,7 +933,7 @@ tbody tr:last-child{border-bottom:none}
 <div class="modal-overlay hidden" id="confirm-modal">
   <div class="modal" style="max-width:400px">
     <div class="modal-header">
-      <div class="modal-title">Confirmar exclusão</div>
+      <div class="modal-title" id="confirm-modal-title">Confirmar exclusão</div>
       <button class="modal-close" onclick="closeModal('confirm-modal')"><i class="fas fa-times"></i></button>
     </div>
     <p style="color:var(--text2);font-size:.9rem" id="confirm-msg">Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.</p>
@@ -1012,8 +1012,14 @@ function togglePass(inputId, btn){
 function openModal(id){$(id).classList.remove('hidden')}
 function closeModal(id){$(id).classList.add('hidden')}
 
-function confirmDelete(msg, cb){
+function confirmDelete(msg, cb, opts){
+  opts = opts || {};
+  const label = opts.label || 'Excluir';
+  const icon  = opts.icon  || 'fa-trash';
+  const title = opts.title || 'Confirmar exclusão';
   $('confirm-msg').textContent = msg;
+  $('confirm-modal-title').textContent = title;
+  $('btn-confirm-delete').innerHTML = `<i class="fas ${icon}"></i> ${label}`;
   $('btn-confirm-delete').onclick = ()=>{ closeModal('confirm-modal'); cb(); };
   openModal('confirm-modal');
 }
@@ -1091,7 +1097,7 @@ function doLogout(){
   confirmDelete('Deseja realmente sair do sistema?', async ()=>{
     await auth.signOut();
     toast('Até logo!','Sessão encerrada.','info');
-  });
+  }, { label: 'Sair', icon: 'fa-right-from-bracket', title: 'Confirmar saída' });
 }
 
 function firebaseErrorMsg(code){
