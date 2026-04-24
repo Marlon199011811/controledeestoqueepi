@@ -1417,7 +1417,7 @@ function renderEPITable(){
   }
   wrap.innerHTML=`<table>
     <thead><tr>
-      <th>Nome</th><th>Código</th><th>Categoria</th>
+      <th>Nome</th><th>Código</th><th>Categoria</th><th>Tamanho</th>
       <th>Qtd</th><th>Mínimo</th><th>Status</th>
       <th style="text-align:right">Ações</th>
     </tr></thead>
@@ -1449,6 +1449,7 @@ function epiRow(e){
     <td><span class="font-bold">${esc(e.nome)}</span> ${venc}</td>
     <td><code style="font-size:.78rem;color:var(--text2)">${esc(e.codigo||'—')}</code></td>
     <td>${e.categoria?`<span class="tag">${esc(e.categoria)}</span>`:'—'}</td>
+    <td>${e.tamanho?`<span class="badge badge-neutral">${esc(e.tamanho)}</span>`:'—'}</td>
     <td><strong>${e.quantidade??0}</strong> ${e.unidade||''}</td>
     <td>${e.estoqueMinimo??0}</td>
     <td>${statusBadge(status)}</td>
