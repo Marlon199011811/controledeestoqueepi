@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -684,6 +683,10 @@ tbody tr:last-child{border-bottom:none}
       </div>
 
       <div class="nav-section-title admin-only" style="margin-top:.5rem">Gestão</div>
+      <div class="nav-item admin-only" data-page="colaboradores" onclick="navigate('colaboradores')">
+        <span class="nav-icon"><i class="fas fa-id-card"></i></span>
+        <span class="nav-label">Colaboradores</span>
+      </div>
       <div class="nav-item admin-only" data-page="usuarios" onclick="navigate('usuarios')">
         <span class="nav-icon"><i class="fas fa-users"></i></span>
         <span class="nav-label">Usuários</span>
@@ -692,6 +695,12 @@ tbody tr:last-child{border-bottom:none}
         <span class="nav-icon"><i class="fas fa-bell"></i></span>
         <span class="nav-label">Alertas</span>
         <span class="nav-badge hidden" id="alert-badge">0</span>
+      </div>
+
+      <div class="nav-section-title" style="margin-top:.5rem">Análise</div>
+      <div class="nav-item" data-page="relatorios" onclick="navigate('relatorios')">
+        <span class="nav-icon"><i class="fas fa-chart-bar"></i></span>
+        <span class="nav-label">Relatórios</span>
       </div>
     </nav>
 
@@ -747,7 +756,8 @@ tbody tr:last-child{border-bottom:none}
         </div>
         <div class="form-group">
           <label class="form-label">Código / CA *</label>
-          <input type="text" id="epi-codigo" class="form-input" placeholder="Ex: CAP-001"/>
+          <input type="text" id="epi-codigo" class="form-input" placeholder="EPI-0001"/>
+          <div class="form-hint">Gerado automaticamente — pode ser editado manualmente</div>
         </div>
       </div>
       <div class="form-row">
@@ -845,7 +855,14 @@ tbody tr:last-child{border-bottom:none}
     </div>
     <div class="form-group">
       <label class="form-label">Colaborador / Destino</label>
-      <input type="text" id="mov-destino" class="form-input" placeholder="Nome do colaborador ou destino"/>
+      <select id="mov-destino" class="form-select">
+        <option value="">— Selecione o colaborador —</option>
+      </select>
+      <div class="form-hint" style="margin-top:.4rem">
+        Não encontrou?
+        <button type="button" class="btn-link" style="font-size:.78rem" onclick="toggleMovDestinoManual(this)">Digitar manualmente</button>
+      </div>
+      <input type="text" id="mov-destino-manual" class="form-input hidden" style="margin-top:.4rem" placeholder="Nome do colaborador ou destino livre"/>
     </div>
     <div class="form-group">
       <label class="form-label">Observação</label>
@@ -855,6 +872,66 @@ tbody tr:last-child{border-bottom:none}
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('mov-modal')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveMovimentacao()"><i class="fas fa-check"></i> Registrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Colaborador Modal -->
+<div class="modal-overlay hidden" id="colab-modal">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="colab-modal-title">Novo Colaborador</div>
+        <div class="modal-subtitle">Preencha os dados do colaborador</div>
+      </div>
+      <button class="modal-close" onclick="closeModal('colab-modal')"><i class="fas fa-times"></i></button>
+    </div>
+    <form onsubmit="return false;">
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Nome completo *</label>
+          <input type="text" id="colab-nome" class="form-input" placeholder="Ex: João da Silva"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Matrícula</label>
+          <input type="text" id="colab-matricula" class="form-input" placeholder="Ex: 00123"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Setor / Departamento</label>
+          <input type="text" id="colab-setor" class="form-input" placeholder="Ex: Produção, Manutenção..."/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cargo / Função</label>
+          <input type="text" id="colab-cargo" class="form-input" placeholder="Ex: Operador, Técnico..."/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Telefone</label>
+          <input type="tel" id="colab-telefone" class="form-input" placeholder="(69) 9 9999-9999"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">E-mail</label>
+          <input type="email" id="colab-email" class="form-input" placeholder="colaborador@empresa.com"/>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Observações</label>
+        <textarea id="colab-obs" class="form-textarea" placeholder="Informações adicionais..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Status</label>
+        <select id="colab-ativo" class="form-select">
+          <option value="true">Ativo</option>
+          <option value="false">Inativo</option>
+        </select>
+      </div>
+    </form>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('colab-modal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveColaborador()"><i class="fas fa-check"></i> Salvar</button>
     </div>
   </div>
 </div>
@@ -898,14 +975,16 @@ const db   = firebase.firestore();
 /* ═══════════════════════════════════════════
    2. STATE
 ═══════════════════════════════════════════ */
-let currentUser   = null;
-let currentPage   = 'dashboard';
-let allEPIs       = [];   // cache local
-let allMov        = [];   // cache local
-let epiEditId     = null;
-let confirmCb     = null;
-let episPage      = 1;
-const ITEMS_PAGE  = 12;
+let currentUser        = null;
+let currentPage        = 'dashboard';
+let allEPIs            = [];   // cache local
+let allMov             = [];   // cache local
+let allColaboradores   = [];   // cache local
+let epiEditId          = null;
+let colaboradorEditId  = null;
+let confirmCb          = null;
+let episPage           = 1;
+const ITEMS_PAGE       = 12;
 
 /* ═══════════════════════════════════════════
    3. HELPERS — UI
@@ -1061,12 +1140,14 @@ function setupUI(){
    7. DATA LOADING
 ═══════════════════════════════════════════ */
 async function loadAllData(){
-  const [episSnap, movSnap]=await Promise.all([
+  const [episSnap, movSnap, colabSnap]=await Promise.all([
     db.collection('epis').orderBy('nome').get(),
-    db.collection('movimentacoes').orderBy('data','desc').limit(200).get()
+    db.collection('movimentacoes').orderBy('data','desc').limit(200).get(),
+    db.collection('colaboradores').orderBy('nome').get()
   ]);
-  allEPIs=episSnap.docs.map(d=>({id:d.id,...d.data()}));
-  allMov =movSnap.docs.map(d=>({id:d.id,...d.data()}));
+  allEPIs          = episSnap.docs.map(d=>({id:d.id,...d.data()}));
+  allMov           = movSnap.docs.map(d=>({id:d.id,...d.data()}));
+  allColaboradores = colabSnap.docs.map(d=>({id:d.id,...d.data()}));
   updateAlertBadge();
 }
 
@@ -1081,12 +1162,14 @@ function updateAlertBadge(){
    8. NAVIGATION
 ═══════════════════════════════════════════ */
 const pagesMeta={
-  dashboard:  {title:'Dashboard',      addLabel:null},
-  epis:       {title:'Estoque de EPIs',addLabel:'Novo EPI'},
-  movimentacoes:{title:'Movimentações',addLabel:'Nova Movimentação'},
-  historico:  {title:'Histórico',      addLabel:null},
-  alertas:    {title:'Alertas de Estoque', addLabel:null},
-  usuarios:   {title:'Usuários',       addLabel:null},
+  dashboard:     {title:'Dashboard',           addLabel:null},
+  epis:          {title:'Estoque de EPIs',      addLabel:'Novo EPI'},
+  movimentacoes: {title:'Movimentações',        addLabel:'Nova Movimentação'},
+  historico:     {title:'Histórico',            addLabel:null},
+  alertas:       {title:'Alertas de Estoque',   addLabel:null},
+  usuarios:      {title:'Usuários',             addLabel:null},
+  colaboradores: {title:'Colaboradores',        addLabel:'Novo Colaborador'},
+  relatorios:    {title:'Relatórios',           addLabel:null},
 };
 
 function navigate(page){
@@ -1110,6 +1193,7 @@ function navigate(page){
 function handleTopbarAdd(){
   if(currentPage==='epis') openEPIModal();
   else if(currentPage==='movimentacoes') openMovModal();
+  else if(currentPage==='colaboradores') openColaboradorModal();
 }
 
 /* ═══════════════════════════════════════════
@@ -1132,12 +1216,14 @@ function renderPage(page){
   const c=$('page-content');
   c.innerHTML='';
   episPage=1;
-  if(page==='dashboard')    renderDashboard(c);
-  else if(page==='epis')    renderEPIs(c);
+  if(page==='dashboard')       renderDashboard(c);
+  else if(page==='epis')       renderEPIs(c);
   else if(page==='movimentacoes') renderMovimentacoes(c);
-  else if(page==='historico')renderHistorico(c);
-  else if(page==='alertas') renderAlertas(c);
-  else if(page==='usuarios')renderUsuarios(c);
+  else if(page==='historico')  renderHistorico(c);
+  else if(page==='alertas')    renderAlertas(c);
+  else if(page==='usuarios')   renderUsuarios(c);
+  else if(page==='colaboradores') renderColaboradores(c);
+  else if(page==='relatorios') renderRelatorios(c);
 }
 
 /* ═══════════════════════════════════════════
@@ -1346,6 +1432,16 @@ function statusBadge(s){
 /* ═══════════════════════════════════════════
    13. EPI MODAL
 ═══════════════════════════════════════════ */
+function generateNextCodigoEPI(){
+  // Extracts the highest numeric suffix from existing EPI-XXXX codes
+  let max=0;
+  allEPIs.forEach(e=>{
+    const m=(e.codigo||'').match(/^EPI-(\d+)$/i);
+    if(m) max=Math.max(max,parseInt(m[1],10));
+  });
+  return 'EPI-'+ String(max+1).padStart(4,'0');
+}
+
 function openEPIModal(id=null){
   epiEditId=id;
   $('epi-modal-title').textContent=id?'Editar EPI':'Novo EPI';
@@ -1366,6 +1462,11 @@ function openEPIModal(id=null){
       $('epi-ca').value=e.ca||'';
       $('epi-obs').value=e.observacoes||'';
     }
+    $('epi-codigo').readOnly=false;
+  } else {
+    // Auto-generate sequential code for new EPI
+    $('epi-codigo').value=generateNextCodigoEPI();
+    $('epi-codigo').readOnly=false;
   }
   openModal('epi-modal');
 }
@@ -1471,8 +1572,18 @@ function openMovModal(epiId=null){
   clearError('mov-error');
   $('mov-data').value=new Date().toISOString().split('T')[0];
   $('mov-qtd').value='';
-  $('mov-destino').value='';
   $('mov-obs').value='';
+  // Reset destino
+  const destSel=$('mov-destino');
+  destSel.innerHTML='<option value="">— Selecione o colaborador —</option>';
+  allColaboradores.filter(c=>c.ativo!==false).forEach(c=>{
+    const o=document.createElement('option');
+    o.value=c.nome+(c.matricula?` (${c.matricula})`:'')+' | '+c.id;
+    o.textContent=c.nome+(c.setor?` — ${c.setor}`:'')+(c.matricula?` [${c.matricula}]`:'');
+    destSel.appendChild(o);
+  });
+  if($('mov-destino-manual'))$('mov-destino-manual').value='';
+  if($('mov-destino-manual'))$('mov-destino-manual').classList.add('hidden');
   // Populate EPI select
   const sel=$('mov-epi');
   sel.innerHTML='<option value="">Selecione o EPI...</option>';
@@ -1486,6 +1597,15 @@ function openMovModal(epiId=null){
   $('mov-tipo').onchange=updateMovHint;
   updateMovHint();
   openModal('mov-modal');
+}
+
+function toggleMovDestinoManual(btn){
+  const manual=$('mov-destino-manual');
+  const sel   =$('mov-destino');
+  const hidden=manual.classList.contains('hidden');
+  manual.classList.toggle('hidden',!hidden);
+  sel.classList.toggle('hidden', hidden);
+  btn.textContent=hidden?'Usar lista de colaboradores':'Digitar manualmente';
 }
 
 function setMovTipo(tipo){setTimeout(()=>{$('mov-tipo').value=tipo;updateMovHint()},50)}
@@ -1523,7 +1643,12 @@ async function saveMovimentacao(){
     const movData={
       epiId, nomeEpi:epi.nome, tipo, quantidade:qtd,
       data, usuarioResponsavel:currentUser.nome||currentUser.email,
-      destino:$('mov-destino').value.trim(),
+      destino:(()=>{
+        const manual=$('mov-destino-manual');
+        if(manual&&!manual.classList.contains('hidden')&&manual.value.trim()) return manual.value.trim();
+        const v=($('mov-destino').value||'').split(' | ')[0].trim();
+        return v;
+      })(),
       observacao:$('mov-obs').value.trim(),
       createdAt:firebase.firestore.FieldValue.serverTimestamp(),
     };
@@ -1672,6 +1797,398 @@ async function toggleUserRole(uid,currentRole,nome){
     }catch(e){toast('Erro',e.message,'error')}
     hideLoader();
   });
+}
+
+/* ═══════════════════════════════════════════
+   18a. COLABORADORES PAGE
+═══════════════════════════════════════════ */
+function renderColaboradores(c){
+  if(currentUser?.perfil!=='admin'){
+    c.innerHTML=`<div class="empty-state" style="padding:3rem"><i class="fas fa-lock"></i><p>Acesso restrito a administradores</p></div>`;
+    return;
+  }
+  c.innerHTML=`
+  <div class="card">
+    <div class="filter-bar">
+      <div class="search-input-wrap">
+        <i class="fas fa-search"></i>
+        <input type="text" id="colab-search" class="form-input search-input" placeholder="Buscar por nome, matrícula, setor..."/>
+      </div>
+      <select id="colab-filter-status" class="form-select" style="width:auto">
+        <option value="">Todos</option>
+        <option value="true">Ativos</option>
+        <option value="false">Inativos</option>
+      </select>
+    </div>
+    <div class="table-container" id="colab-table-wrap"></div>
+  </div>`;
+  $('colab-search').addEventListener('input', renderColaboradoresTable);
+  $('colab-filter-status').addEventListener('change', renderColaboradoresTable);
+  renderColaboradoresTable();
+}
+
+function renderColaboradoresTable(){
+  const q=($('colab-search')?.value||'').toLowerCase();
+  const st=$('colab-filter-status')?.value;
+  const filtered=allColaboradores.filter(c=>{
+    const matchQ=!q||(c.nome||'').toLowerCase().includes(q)||(c.matricula||'').toLowerCase().includes(q)||(c.setor||'').toLowerCase().includes(q)||(c.cargo||'').toLowerCase().includes(q);
+    const matchS=st===''||String(c.ativo!==false)===st;
+    return matchQ&&matchS;
+  });
+  const wrap=$('colab-table-wrap');
+  if(!wrap)return;
+  if(!filtered.length){
+    wrap.innerHTML=`<div class="empty-state"><i class="fas fa-id-card"></i><p>Nenhum colaborador encontrado${allColaboradores.length===0?' — clique em "Novo Colaborador" para começar':''}</p></div>`;
+    return;
+  }
+  wrap.innerHTML=`<table>
+    <thead><tr>
+      <th>Nome</th><th>Matrícula</th><th>Setor</th><th>Cargo</th><th>Contato</th><th>EPIs recebidos</th><th>Status</th><th style="text-align:right">Ações</th>
+    </tr></thead>
+    <tbody>${filtered.map(c=>{
+      const epis=allMov.filter(m=>m.tipo==='saida'&&(m.destino||'').includes(c.nome));
+      return `<tr>
+        <td><strong>${esc(c.nome)}</strong></td>
+        <td><code style="font-size:.78rem;color:var(--text2)">${esc(c.matricula||'—')}</code></td>
+        <td>${c.setor?`<span class="tag">${esc(c.setor)}</span>`:'—'}</td>
+        <td class="text-sm">${esc(c.cargo||'—')}</td>
+        <td class="text-sm text-muted">${c.telefone?`<i class="fas fa-phone" style="margin-right:.3rem"></i>${esc(c.telefone)}`:'—'}</td>
+        <td><span class="badge badge-info"><i class="fas fa-hard-hat"></i> ${epis.length}</span></td>
+        <td>${c.ativo!==false?`<span class="badge badge-success">Ativo</span>`:`<span class="badge badge-neutral">Inativo</span>`}</td>
+        <td>
+          <div class="td-actions" style="justify-content:flex-end">
+            <button class="btn btn-warn btn-sm btn-icon" title="Editar" onclick="openColaboradorModal('${c.id}')"><i class="fas fa-pen"></i></button>
+            <button class="btn btn-danger btn-sm btn-icon" title="Excluir" onclick="deleteColaborador('${c.id}','${esc(c.nome)}')"><i class="fas fa-trash"></i></button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function openColaboradorModal(id=null){
+  colaboradorEditId=id;
+  $('colab-modal-title').textContent=id?'Editar Colaborador':'Novo Colaborador';
+  ['nome','matricula','setor','cargo','telefone','email','obs'].forEach(f=>{const el=$(`colab-${f}`);if(el)el.value=''});
+  $('colab-ativo').value='true';
+  if(id){
+    const c=allColaboradores.find(x=>x.id===id);
+    if(c){
+      $('colab-nome').value=c.nome||'';
+      $('colab-matricula').value=c.matricula||'';
+      $('colab-setor').value=c.setor||'';
+      $('colab-cargo').value=c.cargo||'';
+      $('colab-telefone').value=c.telefone||'';
+      $('colab-email').value=c.email||'';
+      $('colab-obs').value=c.observacoes||'';
+      $('colab-ativo').value=String(c.ativo!==false);
+    }
+  }
+  openModal('colab-modal');
+}
+
+async function saveColaborador(){
+  const nome=$('colab-nome').value.trim();
+  if(!nome){toast('Campo obrigatório','Informe o nome do colaborador.','warn');return}
+  // Check duplicate name (excluding self)
+  const dup=allColaboradores.find(c=>c.nome.toLowerCase()===nome.toLowerCase()&&c.id!==colaboradorEditId);
+  if(dup){toast('Duplicado',`Já existe um colaborador com o nome "${nome}".`,'warn');return}
+  const data={
+    nome,
+    matricula:$('colab-matricula').value.trim(),
+    setor:    $('colab-setor').value.trim(),
+    cargo:    $('colab-cargo').value.trim(),
+    telefone: $('colab-telefone').value.trim(),
+    email:    $('colab-email').value.trim(),
+    observacoes:$('colab-obs').value.trim(),
+    ativo:    $('colab-ativo').value==='true',
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp(),
+  };
+  showLoader();
+  try{
+    if(colaboradorEditId){
+      await db.collection('colaboradores').doc(colaboradorEditId).update(data);
+      const idx=allColaboradores.findIndex(c=>c.id===colaboradorEditId);
+      if(idx>-1)allColaboradores[idx]={...allColaboradores[idx],...data};
+      toast('Colaborador atualizado!','','success');
+    } else {
+      data.dataCadastro=firebase.firestore.FieldValue.serverTimestamp();
+      const ref=await db.collection('colaboradores').add(data);
+      allColaboradores.push({id:ref.id,...data});
+      allColaboradores.sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+      toast('Colaborador cadastrado!','','success');
+    }
+    closeModal('colab-modal');
+    if(currentPage==='colaboradores') renderColaboradoresTable();
+  }catch(e){toast('Erro ao salvar',e.message,'error')}
+  hideLoader();
+}
+
+async function deleteColaborador(id,nome){
+  confirmDelete(`Excluir o colaborador "${nome}"? Esta ação não pode ser desfeita.`, async()=>{
+    showLoader();
+    try{
+      await db.collection('colaboradores').doc(id).delete();
+      allColaboradores=allColaboradores.filter(c=>c.id!==id);
+      toast('Colaborador excluído!','','success');
+      if(currentPage==='colaboradores') renderColaboradoresTable();
+    }catch(e){toast('Erro',e.message,'error')}
+    hideLoader();
+  });
+}
+
+/* ═══════════════════════════════════════════
+   18b. RELATÓRIOS PAGE
+═══════════════════════════════════════════ */
+function renderRelatorios(c){
+  const hoje=new Date();
+  const primeiroDiaMes=new Date(hoje.getFullYear(),hoje.getMonth(),1).toISOString().split('T')[0];
+  const ultimoDiaMes =new Date(hoje.getFullYear(),hoje.getMonth()+1,0).toISOString().split('T')[0];
+
+  c.innerHTML=`
+  <!-- KPIs rápidos -->
+  <div class="stats-grid" style="margin-bottom:1.5rem">
+    ${relKPI('EPIs cadastrados','fa-hard-hat',allEPIs.length,'--accent')}
+    ${relKPI('Colaboradores ativos','fa-id-card',allColaboradores.filter(c=>c.ativo!==false).length,'--accent2')}
+    ${relKPI('Movimentações (total)','fa-arrows-rotate',allMov.length,'--warn')}
+    ${relKPI('EPIs sem estoque','fa-circle-xmark',allEPIs.filter(e=>e.quantidade===0).length,'--danger')}
+  </div>
+
+  <!-- Período de filtro global -->
+  <div class="card" style="margin-bottom:1.25rem">
+    <div class="card-header">
+      <div class="card-title"><i class="fas fa-sliders" style="margin-right:.4rem;color:var(--accent)"></i>Filtro de período</div>
+    </div>
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center">
+      <div>
+        <label class="form-label">De</label>
+        <input type="date" id="rel-de" class="form-input" style="width:auto" value="${primeiroDiaMes}"/>
+      </div>
+      <div>
+        <label class="form-label">Até</label>
+        <input type="date" id="rel-ate" class="form-input" style="width:auto" value="${ultimoDiaMes}"/>
+      </div>
+      <div>
+        <label class="form-label">Colaborador</label>
+        <select id="rel-colab" class="form-select" style="width:auto">
+          <option value="">Todos</option>
+          ${allColaboradores.map(c=>`<option value="${esc(c.nome)}">${esc(c.nome)}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Tipo</label>
+        <select id="rel-tipo" class="form-select" style="width:auto">
+          <option value="">Todos</option>
+          <option value="entrada">Entrada</option>
+          <option value="saida">Saída</option>
+          <option value="ajuste">Ajuste</option>
+        </select>
+      </div>
+      <div style="margin-top:1.35rem">
+        <button class="btn btn-primary btn-sm" onclick="atualizarRelatorios()"><i class="fas fa-magnifying-glass"></i> Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Relatório 1: Estoque atual -->
+  <div class="card" style="margin-bottom:1.25rem">
+    <div class="card-header">
+      <div class="card-title"><i class="fas fa-boxes-stacked" style="margin-right:.4rem;color:var(--accent)"></i>Estoque atual</div>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-ghost btn-sm" onclick="exportRelEstoque()"><i class="fas fa-file-csv"></i> CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="printRelEstoque()"><i class="fas fa-print"></i> Imprimir</button>
+      </div>
+    </div>
+    <div class="table-container" id="rel-estoque-table">${buildRelEstoque()}</div>
+  </div>
+
+  <!-- Relatório 2: Movimentações por período -->
+  <div class="card" style="margin-bottom:1.25rem">
+    <div class="card-header">
+      <div class="card-title"><i class="fas fa-clock-rotate-left" style="margin-right:.4rem;color:var(--warn)"></i>Movimentações no período</div>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-ghost btn-sm" onclick="exportRelMovimentacoes()"><i class="fas fa-file-csv"></i> CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="printRelMovimentacoes()"><i class="fas fa-print"></i> Imprimir</button>
+      </div>
+    </div>
+    <div class="table-container" id="rel-mov-table">${buildRelMovimentacoes(primeiroDiaMes,ultimoDiaMes,'','')}</div>
+  </div>
+
+  <!-- Relatório 3: EPIs por colaborador -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title"><i class="fas fa-id-card" style="margin-right:.4rem;color:var(--accent2)"></i>EPIs recebidos por colaborador</div>
+      <div style="display:flex;gap:.5rem">
+        <button class="btn btn-ghost btn-sm" onclick="exportRelColaboradores()"><i class="fas fa-file-csv"></i> CSV</button>
+        <button class="btn btn-ghost btn-sm" onclick="printRelColaboradores()"><i class="fas fa-print"></i> Imprimir</button>
+      </div>
+    </div>
+    <div class="table-container" id="rel-colab-table">${buildRelColaboradores(primeiroDiaMes,ultimoDiaMes,'')}</div>
+  </div>`;
+}
+
+function relKPI(label,icon,value,color){
+  return `<div class="stat-card" style="--card-accent:var(${color})">
+    <div class="stat-card-icon" style="background:rgba(59,130,246,.12);color:var(${color})"><i class="fas ${icon}"></i></div>
+    <div class="stat-card-value">${value}</div>
+    <div class="stat-card-label">${label}</div>
+  </div>`;
+}
+
+function atualizarRelatorios(){
+  const de  =$('rel-de')?.value||'';
+  const ate =$('rel-ate')?.value||'';
+  const colab=($('rel-colab')?.value||'');
+  const tipo =($('rel-tipo')?.value||'');
+  const movWrap=$('rel-mov-table');
+  const colabWrap=$('rel-colab-table');
+  if(movWrap)  movWrap.innerHTML  =buildRelMovimentacoes(de,ate,colab,tipo);
+  if(colabWrap)colabWrap.innerHTML=buildRelColaboradores(de,ate,colab);
+  toast('Relatório atualizado!','','info');
+}
+
+function getMovFiltradas(de,ate,colab,tipo){
+  return allMov.filter(m=>{
+    const matchD=!de||m.data>=de;
+    const matchA=!ate||m.data<=ate;
+    const matchC=!colab||(m.destino||'').toLowerCase().includes(colab.toLowerCase());
+    const matchT=!tipo||m.tipo===tipo;
+    return matchD&&matchA&&matchC&&matchT;
+  });
+}
+
+function buildRelEstoque(){
+  if(!allEPIs.length) return `<div class="empty-state"><i class="fas fa-hard-hat"></i><p>Nenhum EPI cadastrado</p></div>`;
+  return `<table>
+    <thead><tr><th>Nome</th><th>Código</th><th>Categoria</th><th>Qtd</th><th>Mínimo</th><th>Fabricante</th><th>Validade</th><th>Status</th></tr></thead>
+    <tbody>${allEPIs.map(e=>`<tr>
+      <td><strong>${esc(e.nome)}</strong></td>
+      <td><code style="font-size:.78rem;color:var(--text2)">${esc(e.codigo||'—')}</code></td>
+      <td>${e.categoria?`<span class="tag">${esc(e.categoria)}</span>`:'—'}</td>
+      <td><strong>${e.quantidade??0}</strong> ${e.unidade||''}</td>
+      <td>${e.estoqueMinimo??0}</td>
+      <td class="text-sm text-muted">${esc(e.fabricante||'—')}</td>
+      <td class="${e.validade&&new Date(e.validade)<new Date()?'text-danger':''}">${e.validade||'—'}</td>
+      <td>${statusBadge(epiStatus(e))}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+function buildRelMovimentacoes(de,ate,colab,tipo){
+  const movs=getMovFiltradas(de,ate,colab,tipo);
+  if(!movs.length) return `<div class="empty-state"><i class="fas fa-clock-rotate-left"></i><p>Nenhuma movimentação encontrada no período</p></div>`;
+  const totalEnt=movs.filter(m=>m.tipo==='entrada').reduce((s,m)=>s+(m.quantidade||0),0);
+  const totalSai=movs.filter(m=>m.tipo==='saida').reduce((s,m)=>s+(m.quantidade||0),0);
+  return `<div style="display:flex;gap:1.5rem;margin-bottom:1rem;font-size:.84rem">
+    <span><i class="fas fa-arrow-down" style="color:var(--accent2)"></i> <strong>${totalEnt}</strong> unidades recebidas</span>
+    <span><i class="fas fa-arrow-up" style="color:var(--danger)"></i> <strong>${totalSai}</strong> unidades entregues</span>
+    <span class="text-muted">${movs.length} registros</span>
+  </div>
+  <table>
+    <thead><tr><th>Data</th><th>EPI</th><th>Tipo</th><th>Qtd</th><th>Responsável</th><th>Colaborador/Destino</th><th>Observação</th></tr></thead>
+    <tbody>${movs.map(m=>movRow(m)).join('')}</tbody>
+  </table>`;
+}
+
+function buildRelColaboradores(de,ate,colabFilt){
+  // Group saída movements by destino
+  const movsSaida=allMov.filter(m=>{
+    const matchD=!de||m.data>=de;
+    const matchA=!ate||m.data<=ate;
+    const matchC=!colabFilt||(m.destino||'').toLowerCase().includes(colabFilt.toLowerCase());
+    return m.tipo==='saida'&&matchD&&matchA&&matchC;
+  });
+  // Build map by destino
+  const map={};
+  movsSaida.forEach(m=>{
+    const key=m.destino||'(sem identificação)';
+    if(!map[key])map[key]={destino:key,movs:[]};
+    map[key].movs.push(m);
+  });
+  const entries=Object.values(map).sort((a,b)=>a.destino.localeCompare(b.destino));
+  if(!entries.length) return `<div class="empty-state"><i class="fas fa-id-card"></i><p>Nenhuma saída de EPI encontrada no período</p></div>`;
+  return `<table>
+    <thead><tr><th>Colaborador / Destino</th><th>Total de EPIs</th><th>Última entrega</th><th>EPIs entregues</th></tr></thead>
+    <tbody>${entries.map(e=>{
+      const total=e.movs.reduce((s,m)=>s+(m.quantidade||0),0);
+      const ultima=e.movs.reduce((latest,m)=>(!latest||m.data>latest)?m.data:latest,null);
+      const episList=[...new Set(e.movs.map(m=>m.nomeEpi))].filter(Boolean).join(', ');
+      return `<tr>
+        <td><strong>${esc(e.destino)}</strong></td>
+        <td><span class="badge badge-info">${total}</span></td>
+        <td class="text-sm">${formatDate(ultima)}</td>
+        <td class="text-sm text-muted" style="max-width:280px">${esc(episList)||'—'}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+/* ─── Exports dos Relatórios ─── */
+function exportRelEstoque(){
+  const rows=[['Nome','Código','Categoria','Quantidade','Mínimo','Fabricante','Validade','Status']];
+  allEPIs.forEach(e=>rows.push([e.nome,e.codigo||'',e.categoria||'',e.quantidade??0,e.estoqueMinimo??0,e.fabricante||'',e.validade||'',epiStatus(e)]));
+  downloadCSV(rows,'relatorio-estoque.csv');
+  toast('CSV exportado!','','success');
+}
+function exportRelMovimentacoes(){
+  const de=$('rel-de')?.value||''; const ate=$('rel-ate')?.value||'';
+  const colab=$('rel-colab')?.value||''; const tipo=$('rel-tipo')?.value||'';
+  const movs=getMovFiltradas(de,ate,colab,tipo);
+  const rows=[['Data','EPI','Tipo','Quantidade','Responsável','Destino','Observação']];
+  movs.forEach(m=>rows.push([m.data,m.nomeEpi||'',m.tipo,m.quantidade||0,m.usuarioResponsavel||'',m.destino||'',m.observacao||'']));
+  downloadCSV(rows,'relatorio-movimentacoes.csv');
+  toast('CSV exportado!','','success');
+}
+function exportRelColaboradores(){
+  const de=$('rel-de')?.value||''; const ate=$('rel-ate')?.value||''; const colab=$('rel-colab')?.value||'';
+  const movsSaida=allMov.filter(m=>m.tipo==='saida'&&(!de||m.data>=de)&&(!ate||m.data<=ate)&&(!colab||(m.destino||'').toLowerCase().includes(colab.toLowerCase())));
+  const map={};
+  movsSaida.forEach(m=>{const k=m.destino||'(sem identificação)';if(!map[k])map[k]={movs:[]};map[k].movs.push(m);});
+  const rows=[['Colaborador','Total EPIs','Última Entrega','EPIs']];
+  Object.entries(map).forEach(([dest,v])=>{
+    const total=v.movs.reduce((s,m)=>s+(m.quantidade||0),0);
+    const ultima=v.movs.reduce((l,m)=>(!l||m.data>l)?m.data:l,null);
+    const epis=[...new Set(v.movs.map(m=>m.nomeEpi))].join('; ');
+    rows.push([dest,total,ultima||'',epis]);
+  });
+  downloadCSV(rows,'relatorio-colaboradores.csv');
+  toast('CSV exportado!','','success');
+}
+function downloadCSV(rows, filename){
+  const csv=rows.map(r=>r.map(v=>`"${String(v||'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+  const url=URL.createObjectURL(blob); const a=document.createElement('a');
+  a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
+}
+function printRelEstoque(){
+  const rows=allEPIs.map(e=>`<tr><td>${esc(e.nome)}</td><td>${esc(e.codigo||'')}</td><td>${esc(e.categoria||'')}</td><td>${e.quantidade??0}</td><td>${e.estoqueMinimo??0}</td><td>${e.validade||'—'}</td><td>${epiStatus(e).toUpperCase()}</td></tr>`).join('');
+  openPrintWindow('Relatório de Estoque de EPIs',`<table border="1"><thead><tr><th>Nome</th><th>Código</th><th>Categoria</th><th>Qtd</th><th>Mínimo</th><th>Validade</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`);
+}
+function printRelMovimentacoes(){
+  const de=$('rel-de')?.value||''; const ate=$('rel-ate')?.value||'';
+  const colab=$('rel-colab')?.value||''; const tipo=$('rel-tipo')?.value||'';
+  const movs=getMovFiltradas(de,ate,colab,tipo);
+  const rows=movs.map(m=>`<tr><td>${m.data}</td><td>${esc(m.nomeEpi||'')}</td><td>${m.tipo}</td><td>${m.quantidade||0}</td><td>${esc(m.destino||'')}</td><td>${esc(m.observacao||'')}</td></tr>`).join('');
+  openPrintWindow('Relatório de Movimentações',`<p>Período: ${de||'—'} a ${ate||'—'}</p><table border="1"><thead><tr><th>Data</th><th>EPI</th><th>Tipo</th><th>Qtd</th><th>Destino</th><th>Obs</th></tr></thead><tbody>${rows}</tbody></table>`);
+}
+function printRelColaboradores(){
+  const de=$('rel-de')?.value||''; const ate=$('rel-ate')?.value||''; const colab=$('rel-colab')?.value||'';
+  const movsSaida=allMov.filter(m=>m.tipo==='saida'&&(!de||m.data>=de)&&(!ate||m.data<=ate)&&(!colab||(m.destino||'').toLowerCase().includes(colab.toLowerCase())));
+  const map={};
+  movsSaida.forEach(m=>{const k=m.destino||'(sem identificação)';if(!map[k])map[k]={movs:[]};map[k].movs.push(m);});
+  const rows=Object.entries(map).map(([dest,v])=>{
+    const total=v.movs.reduce((s,m)=>s+(m.quantidade||0),0);
+    const epis=[...new Set(v.movs.map(m=>m.nomeEpi))].join(', ');
+    return `<tr><td>${esc(dest)}</td><td>${total}</td><td>${esc(epis)}</td></tr>`;
+  }).join('');
+  openPrintWindow('EPIs por Colaborador',`<p>Período: ${de||'—'} a ${ate||'—'}</p><table border="1"><thead><tr><th>Colaborador</th><th>Total EPIs</th><th>Itens</th></tr></thead><tbody>${rows}</tbody></table>`);
+}
+function openPrintWindow(title,content){
+  const win=window.open('','_blank');
+  win.document.write(`<!DOCTYPE html><html><head><title>${title} — SafeStock</title>
+  <style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f0f0f0}</style>
+  </head><body><h2>${title} — SafeStock</h2><p>Gerado em: ${new Date().toLocaleString('pt-BR')}</p>${content}</body></html>`);
+  win.document.close();win.print();
 }
 
 /* ═══════════════════════════════════════════
